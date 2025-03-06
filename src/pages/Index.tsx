@@ -5,34 +5,59 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Dumbbell, ChevronRight, BarChart, ClipboardList, RefreshCcw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const { user, isAuthenticated, isLoading, sessionChecked } = useAuth();
   const [showRefreshButton, setShowRefreshButton] = useState(false);
+  const [forceShowContent, setForceShowContent] = useState(false);
+  const { toast } = useToast();
   
+  // Afficher le contenu après un certain temps même si l'auth n'est pas terminée
   useEffect(() => {
-    // Afficher le bouton de rafraîchissement après 5 secondes si toujours en chargement
-    const timer = setTimeout(() => {
+    // Afficher le bouton de rafraîchissement après 3 secondes si toujours en chargement
+    const refreshTimer = setTimeout(() => {
       if (isLoading) {
         setShowRefreshButton(true);
       }
-    }, 5000);
+    }, 3000);
     
-    return () => clearTimeout(timer);
-  }, [isLoading]);
+    // Forcer l'affichage du contenu après 8 secondes même si l'auth n'est pas terminée
+    const contentTimer = setTimeout(() => {
+      if (isLoading) {
+        console.log("Index: Auth taking too long, forcing content display");
+        setForceShowContent(true);
+        toast({
+          title: "Chargement prolongé",
+          description: "Affichage du contenu sans attendre l'authentification complète",
+          variant: "default",
+        });
+      }
+    }, 8000);
+    
+    return () => {
+      clearTimeout(refreshTimer);
+      clearTimeout(contentTimer);
+    };
+  }, [isLoading, toast]);
 
-  // Si le chargement prend trop de temps, afficher un bouton de rafraîchissement
-  if (isLoading && !sessionChecked && showRefreshButton) {
+  // Déterminer si nous devons afficher le contenu
+  const shouldShowContent = !isLoading || forceShowContent || sessionChecked;
+  
+  // Si en chargement et pas encore forcé d'afficher le contenu
+  if (isLoading && !forceShowContent && !sessionChecked) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center">
         <div className="text-mps-primary mb-4">Chargement des données...</div>
-        <Button 
-          variant="outline" 
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-2"
-        >
-          <RefreshCcw size={16} /> Rafraîchir la page
-        </Button>
+        {showRefreshButton && (
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2"
+          >
+            <RefreshCcw size={16} /> Rafraîchir la page
+          </Button>
+        )}
       </div>
     );
   }
