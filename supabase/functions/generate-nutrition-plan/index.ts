@@ -65,11 +65,31 @@ serve(async (req) => {
             "breakfast": {
               "title": "Petit-déjeuner",
               "description": "Description détaillée",
-              "calories": 450
+              "calories": 450,
+              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
+              "preparation": "Instructions de préparation"
             },
-            "lunch": { ... },
-            "snack": { ... },
-            "dinner": { ... }
+            "lunch": { 
+              "title": "Déjeuner",
+              "description": "Description détaillée",
+              "calories": 650,
+              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
+              "preparation": "Instructions de préparation"
+            },
+            "snack": { 
+              "title": "Collation",
+              "description": "Description détaillée",
+              "calories": 250,
+              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
+              "preparation": "Instructions de préparation"
+            },
+            "dinner": { 
+              "title": "Dîner",
+              "description": "Description détaillée",
+              "calories": 550,
+              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
+              "preparation": "Instructions de préparation"
+            }
           },
           "totalCalories": 1850,
           "macros": {
@@ -77,11 +97,17 @@ serve(async (req) => {
             "carbs": "45%",
             "fats": "30%"
           }
-        },
-        ... (7 jours)
-      ]
+        }
+      ],
+      "shoppingList": {
+        "categories": {
+          "Fruits et Légumes": ["Pommes", "Bananes", "Carottes"],
+          "Protéines": ["Poulet", "Oeufs", "Tofu"],
+          "Céréales": ["Riz", "Pâtes", "Pain complet"]
+        }
+      }
     }
-    Assure-toi que le JSON est valide et suit exactement cette structure.`;
+    Assure-toi que le JSON est valide et suit exactement cette structure. N'oublie pas d'inclure les ingrédients et les instructions de préparation pour chaque repas.`;
 
     console.log("System prompt:", systemPrompt)
 
@@ -114,27 +140,261 @@ serve(async (req) => {
     // Extract and parse the JSON content from the response
     try {
       const content = data.choices[0].message.content
-      const nutritionPlan = JSON.parse(content)
+      console.log("Raw content from OpenAI:", content)
+      
+      // Ensure we have a valid JSON by doing more intensive processing
+      let jsonString = content
+      
+      // Remove markdown code blocks if present
+      if (content.includes("```json")) {
+        jsonString = content.split("```json")[1].split("```")[0].trim()
+      } else if (content.includes("```")) {
+        jsonString = content.split("```")[1].split("```")[0].trim()
+      }
+      
+      // Try to find JSON object if there's text before or after
+      if (!jsonString.startsWith("{")) {
+        const startIndex = jsonString.indexOf("{")
+        if (startIndex !== -1) {
+          jsonString = jsonString.substring(startIndex)
+        }
+      }
+      
+      if (!jsonString.endsWith("}")) {
+        const endIndex = jsonString.lastIndexOf("}")
+        if (endIndex !== -1) {
+          jsonString = jsonString.substring(0, endIndex + 1)
+        }
+      }
+      
+      console.log("Processed JSON string:", jsonString)
+      
+      // Now parse the cleaned JSON
+      const nutritionPlan = JSON.parse(jsonString)
+      
+      // Validate the structure to ensure it has all required properties
+      if (!nutritionPlan.days || !Array.isArray(nutritionPlan.days) || nutritionPlan.days.length === 0) {
+        throw new Error("Invalid nutrition plan structure: 'days' array is missing or empty")
+      }
+      
+      // Make sure each day has meals
+      nutritionPlan.days.forEach((day, index) => {
+        if (!day.meals) {
+          day.meals = {
+            breakfast: { 
+              title: "Petit-déjeuner", 
+              description: "Plan par défaut - données manquantes", 
+              calories: 0,
+              ingredients: ["Information non disponible"],
+              preparation: "Information non disponible"
+            },
+            lunch: { 
+              title: "Déjeuner", 
+              description: "Plan par défaut - données manquantes", 
+              calories: 0,
+              ingredients: ["Information non disponible"],
+              preparation: "Information non disponible"
+            },
+            snack: { 
+              title: "Collation", 
+              description: "Plan par défaut - données manquantes", 
+              calories: 0,
+              ingredients: ["Information non disponible"],
+              preparation: "Information non disponible"
+            },
+            dinner: { 
+              title: "Dîner", 
+              description: "Plan par défaut - données manquantes", 
+              calories: 0,
+              ingredients: ["Information non disponible"],
+              preparation: "Information non disponible"
+            }
+          }
+        }
+        
+        // Make sure each meal has all required fields
+        ['breakfast', 'lunch', 'snack', 'dinner'].forEach(mealType => {
+          const meal = day.meals[mealType]
+          if (!meal) {
+            day.meals[mealType] = {
+              title: mealType === 'breakfast' ? "Petit-déjeuner" : 
+                     mealType === 'lunch' ? "Déjeuner" : 
+                     mealType === 'snack' ? "Collation" : "Dîner",
+              description: "Plan par défaut - données manquantes",
+              calories: 0,
+              ingredients: ["Information non disponible"],
+              preparation: "Information non disponible"
+            }
+          } else {
+            // Ensure ingredients are present
+            if (!meal.ingredients || !Array.isArray(meal.ingredients)) {
+              meal.ingredients = ["Information non disponible"]
+            }
+            
+            // Ensure preparation is present
+            if (!meal.preparation) {
+              meal.preparation = "Information non disponible"
+            }
+          }
+        })
+        
+        // Ensure macros are present
+        if (!day.macros) {
+          day.macros = { proteins: "0%", carbs: "0%", fats: "0%" }
+        }
+        
+        // Ensure totalCalories is present
+        if (!day.totalCalories) {
+          day.totalCalories = 0
+        }
+      })
+      
+      // Ensure shoppingList is present
+      if (!nutritionPlan.shoppingList || !nutritionPlan.shoppingList.categories) {
+        nutritionPlan.shoppingList = {
+          categories: {
+            "Fruits et Légumes": ["Information non disponible"],
+            "Protéines": ["Information non disponible"],
+            "Céréales": ["Information non disponible"]
+          }
+        }
+      }
+      
+      // Ensure disclaimer is present
+      if (!nutritionPlan.disclaimer) {
+        nutritionPlan.disclaimer = "Ces recommandations nutritionnelles sont générées automatiquement et doivent être validées par un professionnel de santé."
+      }
+      
+      console.log("Validated nutrition plan structure")
       
       return new Response(JSON.stringify({ nutritionPlan }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     } catch (parseError) {
       console.error('Error parsing JSON from OpenAI response:', parseError)
-      // If JSON parsing fails, return the raw content
+      console.error('Raw content:', data.choices[0].message.content)
+      
+      // Return a default nutrition plan structure instead of failing
+      const defaultPlan = {
+        disclaimer: "Ces recommandations nutritionnelles sont des valeurs par défaut suite à une erreur de génération. Veuillez régénérer ou consulter un professionnel.",
+        alert: "Une erreur est survenue lors de la génération de votre plan nutritionnel. Voici un plan par défaut.",
+        days: Array(7).fill(null).map((_, i) => ({
+          day: `Jour ${i+1}`,
+          meals: {
+            breakfast: { 
+              title: "Petit-déjeuner", 
+              description: "Plan par défaut suite à une erreur de génération", 
+              calories: 0,
+              ingredients: ["Veuillez régénérer le plan"],
+              preparation: "Veuillez régénérer le plan"
+            },
+            lunch: { 
+              title: "Déjeuner", 
+              description: "Plan par défaut suite à une erreur de génération", 
+              calories: 0,
+              ingredients: ["Veuillez régénérer le plan"],
+              preparation: "Veuillez régénérer le plan"
+            },
+            snack: { 
+              title: "Collation", 
+              description: "Plan par défaut suite à une erreur de génération", 
+              calories: 0,
+              ingredients: ["Veuillez régénérer le plan"],
+              preparation: "Veuillez régénérer le plan"
+            },
+            dinner: { 
+              title: "Dîner", 
+              description: "Plan par défaut suite à une erreur de génération", 
+              calories: 0,
+              ingredients: ["Veuillez régénérer le plan"],
+              preparation: "Veuillez régénérer le plan"
+            }
+          },
+          totalCalories: 0,
+          macros: {
+            proteins: "0%",
+            carbs: "0%",
+            fats: "0%"
+          }
+        })),
+        shoppingList: {
+          categories: {
+            "Fruits et Légumes": ["Veuillez régénérer le plan"],
+            "Protéines": ["Veuillez régénérer le plan"],
+            "Céréales": ["Veuillez régénérer le plan"]
+          }
+        }
+      };
+      
       return new Response(JSON.stringify({ 
-        error: 'Failed to parse nutrition plan', 
-        content: data.choices[0].message.content 
+        nutritionPlan: defaultPlan,
+        error: "Erreur lors de la génération du plan nutritionnel personnalisé. Un plan par défaut a été généré."
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 200 // Return 200 with default plan instead of 500
       })
     }
   } catch (error) {
     console.error('Error in generate-nutrition-plan function:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    
+    // Return a default nutrition plan even on serious errors
+    const defaultPlan = {
+      disclaimer: "Ces recommandations nutritionnelles sont des valeurs par défaut suite à une erreur. Veuillez régénérer ou consulter un professionnel.",
+      alert: "Une erreur est survenue lors de la génération de votre plan nutritionnel. Voici un plan par défaut.",
+      days: Array(7).fill(null).map((_, i) => ({
+        day: `Jour ${i+1}`,
+        meals: {
+          breakfast: { 
+            title: "Petit-déjeuner", 
+            description: "Plan par défaut suite à une erreur", 
+            calories: 0,
+            ingredients: ["Veuillez régénérer le plan"],
+            preparation: "Veuillez régénérer le plan"
+          },
+          lunch: { 
+            title: "Déjeuner", 
+            description: "Plan par défaut suite à une erreur", 
+            calories: 0,
+            ingredients: ["Veuillez régénérer le plan"],
+            preparation: "Veuillez régénérer le plan"
+          },
+          snack: { 
+            title: "Collation", 
+            description: "Plan par défaut suite à une erreur", 
+            calories: 0,
+            ingredients: ["Veuillez régénérer le plan"],
+            preparation: "Veuillez régénérer le plan"
+          },
+          dinner: { 
+            title: "Dîner", 
+            description: "Plan par défaut suite à une erreur", 
+            calories: 0,
+            ingredients: ["Veuillez régénérer le plan"],
+            preparation: "Veuillez régénérer le plan"
+          }
+        },
+        totalCalories: 0,
+        macros: {
+          proteins: "0%",
+          carbs: "0%",
+          fats: "0%"
+        }
+      })),
+      shoppingList: {
+        categories: {
+          "Fruits et Légumes": ["Veuillez régénérer le plan"],
+          "Protéines": ["Veuillez régénérer le plan"],
+          "Céréales": ["Veuillez régénérer le plan"]
+        }
+      }
+    };
+    
+    return new Response(JSON.stringify({ 
+      nutritionPlan: defaultPlan,
+      error: error.message || "Une erreur inconnue s'est produite"
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200 // Return 200 with default plan instead of 500
     })
   }
 })

@@ -3,15 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUserData } from '@/context/UserDataContext';
-import { Utensils, AlertTriangle, ArrowRight, RefreshCw, List, Save, Mail } from 'lucide-react';
+import { Utensils, AlertTriangle, RefreshCw, List, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-interface Ingredient {
-  name: string;
-  highlighted: boolean;
-}
 
 const NutritionSection: React.FC = () => {
   const { userData } = useUserData();
@@ -32,28 +27,39 @@ const NutritionSection: React.FC = () => {
         description: "Veuillez patienter pendant que nous générons votre plan personnalisé...",
       });
 
-      // Call our Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('generate-ai-content', {
-        body: { 
-          userData,
-          contentType: 'nutrition'
-        },
+      console.log("Calling generate-nutrition-plan with userData:", userData);
+
+      // Call our Supabase Edge Function directly
+      const { data, error } = await supabase.functions.invoke('generate-nutrition-plan', {
+        body: { userData },
       });
 
       if (error) {
+        console.error("Error from Edge Function:", error);
         throw new Error(`Erreur lors de l'appel à l'API: ${error.message}`);
       }
 
+      console.log("Edge Function response received:", data);
+
       if (data.error) {
-        throw new Error(`Erreur de génération: ${data.error}`);
+        console.warn("Warning from Edge Function:", data.error);
+        toast({
+          title: "Attention",
+          description: data.error,
+          variant: "destructive",
+        });
       }
 
-      setNutritionPlan(data.content);
+      if (!data.nutritionPlan) {
+        throw new Error("Le plan nutritionnel n'a pas été généré correctement");
+      }
+
+      setNutritionPlan(data.nutritionPlan);
       
       toast({
         title: "Plan nutritionnel généré",
         description: "Votre plan nutritionnel personnalisé est prêt !",
-        variant: "default", // Modifié "success" en "default"
+        variant: "default",
       });
     } catch (error) {
       console.error('Error generating nutrition plan:', error);
@@ -70,7 +76,7 @@ const NutritionSection: React.FC = () => {
   };
 
   useEffect(() => {
-    // Generate the nutrition plan when the component mounts
+    // Add safeguard to prevent calling the API with null userData
     if (userData) {
       generateNutritionPlan();
     }
@@ -121,9 +127,38 @@ const NutritionSection: React.FC = () => {
     );
   }
 
+  // Vérifier si le plan nutritionnel a la structure attendue
+  if (!nutritionPlan.days || !Array.isArray(nutritionPlan.days) || nutritionPlan.days.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center p-8">
+        <Card className="w-full max-w-md mx-auto">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-mps-error mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-mps-error mb-2">Format de données invalide</h3>
+            <p className="text-mps-text mb-4">Le plan nutritionnel n'a pas la structure attendue.</p>
+            <Button onClick={generateNutritionPlan}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Régénérer le plan
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // S'assurer que activeDay est dans les limites valides
+  if (activeDay >= nutritionPlan.days.length) {
+    setActiveDay(0);
+    return null; // Éviter le rendu avec un index invalide
+  }
+
   const currentDay = nutritionPlan.days[activeDay];
 
   const renderIngredientsList = (ingredients: string[]) => {
+    if (!ingredients || !Array.isArray(ingredients)) {
+      return <p className="text-mps-text italic">Ingrédients non disponibles</p>;
+    }
+    
     return (
       <ul className="list-disc pl-5 space-y-1">
         {ingredients.map((ingredient, idx) => (
@@ -134,10 +169,14 @@ const NutritionSection: React.FC = () => {
   };
 
   const renderShoppingList = () => {
-    if (!nutritionPlan.shoppingList) {
+    if (!nutritionPlan.shoppingList || !nutritionPlan.shoppingList.categories) {
       return (
         <div className="text-center p-8">
           <p className="text-mps-text">Liste de courses non disponible.</p>
+          <Button onClick={generateNutritionPlan} className="mt-4">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Régénérer le plan avec la liste de courses
+          </Button>
         </div>
       );
     }
@@ -159,11 +198,15 @@ const NutritionSection: React.FC = () => {
                 <CardTitle className="text-lg">{category}</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="list-disc pl-5 space-y-1">
-                  {Array.isArray(items) && items.map((item, idx) => (
-                    <li key={idx} className="text-mps-text">{item}</li>
-                  ))}
-                </ul>
+                {Array.isArray(items) ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    {items.map((item, idx) => (
+                      <li key={idx} className="text-mps-text">{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-mps-text italic">Éléments non disponibles</p>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -198,8 +241,8 @@ const NutritionSection: React.FC = () => {
         </TabsList>
 
         <TabsContent value="plan" className="space-y-6">
-          <div className="bg-mps-secondary/30 p-4 rounded-md mb-6">
-            <div className="flex overflow-x-auto pb-2 space-x-2 scrollbar-none">
+          <div className="bg-mps-secondary/30 p-4 rounded-md mb-6 overflow-x-auto">
+            <div className="flex space-x-2 min-w-max">
               {nutritionPlan.days.map((day: any, index: number) => (
                 <button
                   key={index}
@@ -217,62 +260,84 @@ const NutritionSection: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {Object.entries(currentDay.meals).map(([key, meal]: [string, any]) => (
-              <Card key={key} className="hover:shadow-medium transition-shadow">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center">
-                    <Utensils className="h-5 w-5 mr-2 text-mps-primary" />
-                    {meal.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-3">
-                  <p className="text-mps-text mb-4">{meal.description}</p>
-                  
-                  <div className="mb-4">
-                    <h4 className="font-medium text-mps-primary mb-2">Ingrédients :</h4>
-                    {renderIngredientsList(meal.ingredients)}
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium text-mps-primary mb-2">Préparation :</h4>
-                    <p className="text-mps-text text-sm">{meal.preparation}</p>
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-0 flex justify-between text-sm text-mps-text/80">
-                  <span>{meal.calories} calories</span>
-                </CardFooter>
-              </Card>
-            ))}
+            {currentDay && currentDay.meals ? (
+              Object.entries(currentDay.meals).map(([key, meal]: [string, any]) => {
+                if (!meal) return null;
+                
+                return (
+                  <Card key={key} className="hover:shadow-medium transition-shadow">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center">
+                        <Utensils className="h-5 w-5 mr-2 text-mps-primary" />
+                        {meal.title || (
+                          key === 'breakfast' ? 'Petit-déjeuner' : 
+                          key === 'lunch' ? 'Déjeuner' : 
+                          key === 'snack' ? 'Collation' : 'Dîner'
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pb-3">
+                      <p className="text-mps-text mb-4">{meal.description || 'Description non disponible'}</p>
+                      
+                      <div className="mb-4">
+                        <h4 className="font-medium text-mps-primary mb-2">Ingrédients :</h4>
+                        {renderIngredientsList(meal.ingredients)}
+                      </div>
+                      
+                      <div>
+                        <h4 className="font-medium text-mps-primary mb-2">Préparation :</h4>
+                        <p className="text-mps-text text-sm">{meal.preparation || 'Instructions non disponibles'}</p>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="pt-0 flex justify-between text-sm text-mps-text/80">
+                      <span>{(meal.calories || 0)} calories</span>
+                    </CardFooter>
+                  </Card>
+                );
+              })
+            ) : (
+              <div className="col-span-2 text-center p-8">
+                <p className="text-mps-text">Données des repas non disponibles.</p>
+              </div>
+            )}
           </div>
 
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle>Résumé nutritionnel du jour</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
-                  <div className="text-xl font-semibold text-mps-primary">{currentDay.totalCalories}</div>
-                  <div className="text-sm text-mps-text">Calories totales</div>
+          {currentDay && currentDay.macros ? (
+            <Card className="mt-8">
+              <CardHeader>
+                <CardTitle>Résumé nutritionnel du jour</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
+                    <div className="text-xl font-semibold text-mps-primary">{currentDay.totalCalories || 0}</div>
+                    <div className="text-sm text-mps-text">Calories totales</div>
+                  </div>
+                  <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
+                    <div className="text-xl font-semibold text-mps-primary">{currentDay.macros.proteins || '0%'}</div>
+                    <div className="text-sm text-mps-text">Protéines</div>
+                  </div>
+                  <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
+                    <div className="text-xl font-semibold text-mps-primary">{currentDay.macros.carbs || '0%'}</div>
+                    <div className="text-sm text-mps-text">Glucides</div>
+                  </div>
+                  <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
+                    <div className="text-xl font-semibold text-mps-primary">{currentDay.macros.fats || '0%'}</div>
+                    <div className="text-sm text-mps-text">Lipides</div>
+                  </div>
                 </div>
-                <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
-                  <div className="text-xl font-semibold text-mps-primary">{currentDay.macros.proteins}</div>
-                  <div className="text-sm text-mps-text">Protéines</div>
-                </div>
-                <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
-                  <div className="text-xl font-semibold text-mps-primary">{currentDay.macros.carbs}</div>
-                  <div className="text-sm text-mps-text">Glucides</div>
-                </div>
-                <div className="p-4 bg-mps-secondary/20 rounded-md text-center">
-                  <div className="text-xl font-semibold text-mps-primary">{currentDay.macros.fats}</div>
-                  <div className="text-sm text-mps-text">Lipides</div>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="pt-4 text-sm text-mps-text/80 italic">
-              {nutritionPlan.disclaimer}
-            </CardFooter>
-          </Card>
+              </CardContent>
+              <CardFooter className="pt-4 text-sm text-mps-text/80 italic">
+                {nutritionPlan.disclaimer || "Ces recommandations nutritionnelles sont générées automatiquement et doivent être validées par un professionnel de santé."}
+              </CardFooter>
+            </Card>
+          ) : (
+            <Card className="mt-8">
+              <CardContent className="p-6 text-center">
+                <p className="text-mps-text">Données nutritionnelles non disponibles.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="shopping">
