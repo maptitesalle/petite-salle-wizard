@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 // Create the context
@@ -41,6 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [sessionError, setSessionError] = useState<Error | null>(null);
 
   // Fetch the user's profile from the profiles table
   const fetchUserProfile = async (authUser: User) => {
@@ -76,6 +78,77 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false);
       setSessionChecked(true);
+    }
+  };
+
+  // New function to refresh the session
+  const refreshSession = async () => {
+    setIsLoading(true);
+    setSessionError(null);
+    
+    try {
+      console.log("AuthContext: Manually refreshing session");
+      
+      // First try to refresh the session
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        console.error("AuthContext: Session refresh failed:", refreshError);
+        throw refreshError;
+      }
+      
+      if (refreshData.session) {
+        console.log("AuthContext: Session refreshed successfully");
+        setSession(refreshData.session);
+        
+        if (refreshData.session.user) {
+          await fetchUserProfile(refreshData.session.user);
+        } else {
+          setUser(null);
+          setIsLoading(false);
+          setSessionChecked(true);
+        }
+      } else {
+        console.log("AuthContext: No session after refresh, treating as logged out");
+        setUser(null);
+        setSession(null);
+        setIsLoading(false);
+        setSessionChecked(true);
+      }
+    } catch (error) {
+      console.error("AuthContext: Error refreshing session:", error);
+      // If refresh fails, try to get fresh session
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        
+        if (sessionData.session) {
+          console.log("AuthContext: Retrieved fresh session");
+          setSession(sessionData.session);
+          
+          if (sessionData.session.user) {
+            await fetchUserProfile(sessionData.session.user);
+          } else {
+            setUser(null);
+            setIsLoading(false);
+            setSessionChecked(true);
+          }
+        } else {
+          console.log("AuthContext: No valid session found");
+          setUser(null);
+          setSession(null);
+          setIsLoading(false);
+          setSessionChecked(true);
+        }
+      } catch (finalError) {
+        console.error("AuthContext: Complete session refresh failure:", finalError);
+        setSessionError(finalError as Error);
+        setUser(null);
+        setSession(null);
+        setIsLoading(false);
+        setSessionChecked(true);
+      }
     }
   };
 
@@ -217,7 +290,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     sessionChecked,
     login,
     logout,
-    register
+    register,
+    refreshSession
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

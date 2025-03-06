@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,18 +12,16 @@ import SupplementsSection from '@/components/dashboard/SupplementsSection';
 import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
 
 const Dashboard = () => {
-  const { isAuthenticated, user, isLoading, sessionChecked } = useAuth();
+  const { isAuthenticated, user, isLoading, sessionChecked, refreshSession } = useAuth();
   const { userData, isLoading: dataLoading, loadUserData } = useUserData();
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  // Add state to track if we're showing a timeout message
   const [showTimeout, setShowTimeout] = useState(false);
   const [showMaxTimeout, setShowMaxTimeout] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
   
   useEffect(() => {
-    // Si l'authentification est vérifiée et que l'utilisateur est authentifié mais que userData est null,
-    // essayer de recharger les données utilisateur
     if (sessionChecked && isAuthenticated && !isLoading && !userData && !dataLoading) {
       console.log("Dashboard - Session checked, user authenticated, but userData is null. Reloading user data.");
       loadUserData().catch(error => {
@@ -32,17 +29,14 @@ const Dashboard = () => {
       });
     }
     
-    // If we've checked the session and the user is not authenticated, redirect to login
     if (sessionChecked && !isAuthenticated && !isLoading) {
       navigate('/login');
     }
     
-    // Set a timer to show the refresh button after 5 seconds if still loading
     const timer = setTimeout(() => {
       setShowTimeout(true);
     }, 5000);
     
-    // Set a timer for a hard page reload after 20 seconds if still loading
     const maxTimer = setTimeout(() => {
       if ((isLoading || dataLoading) && !userData) {
         setShowMaxTimeout(true);
@@ -50,17 +44,56 @@ const Dashboard = () => {
       }
     }, 20000);
     
+    const refreshTimer = setTimeout(() => {
+      if ((isLoading || dataLoading || !userData) && !refreshAttempted) {
+        console.log("Dashboard - Auto-refreshing session after timeout");
+        handleSessionRefresh();
+      }
+    }, 10000);
+    
     return () => {
       clearTimeout(timer);
       clearTimeout(maxTimer);
+      clearTimeout(refreshTimer);
     };
-  }, [isAuthenticated, isLoading, navigate, sessionChecked, userData, dataLoading, loadUserData]);
+  }, [isAuthenticated, isLoading, navigate, sessionChecked, userData, dataLoading, loadUserData, refreshAttempted]);
+  
+  const handleSessionRefresh = async () => {
+    setRefreshAttempted(true);
+    try {
+      toast({
+        title: "Rafraîchissement de la session",
+        description: "Tentative de restauration de votre session...",
+      });
+      
+      await refreshSession();
+      
+      if (!userData) {
+        await loadUserData();
+      }
+      
+      toast({
+        title: "Session restaurée",
+        description: "Votre session a été rafraîchie avec succès.",
+      });
+    } catch (error) {
+      console.error("Failed to refresh session:", error);
+      toast({
+        variant: "destructive",
+        title: "Erreur de session",
+        description: "Impossible de restaurer votre session. Veuillez vous reconnecter.",
+      });
+      
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+    }
+  };
   
   const handleRefresh = () => {
     window.location.reload();
   };
   
-  // Si le chargement prend trop de temps (20 secondes), proposer une solution plus radicale
   if (showMaxTimeout && (isLoading || dataLoading || !userData)) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center p-4">
@@ -70,6 +103,14 @@ const Dashboard = () => {
             Le chargement de vos données prend plus de temps que prévu. Cela peut être dû à un problème de connexion ou à une erreur temporaire.
           </p>
           <div className="space-y-4">
+            <Button 
+              variant="default" 
+              onClick={handleSessionRefresh}
+              className="w-full flex items-center justify-center gap-2"
+              disabled={refreshAttempted}
+            >
+              <RefreshCcw size={16} /> Restaurer la session
+            </Button>
             <Button 
               variant="default" 
               onClick={handleRefresh}
@@ -90,7 +131,6 @@ const Dashboard = () => {
     );
   }
   
-  // If still checking authentication or loading user data, show a loading state with a refresh button after timeout
   if (isLoading || !sessionChecked || dataLoading) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center">
@@ -101,13 +141,23 @@ const Dashboard = () => {
         </div>
         
         {showTimeout && (
-          <Button 
-            variant="outline" 
-            onClick={handleRefresh}
-            className="mt-4 flex items-center gap-2"
-          >
-            <RefreshCcw size={16} /> Rafraîchir la page
-          </Button>
+          <div className="flex flex-col items-center gap-3">
+            <Button 
+              variant="default"
+              onClick={handleSessionRefresh}
+              className="flex items-center gap-2"
+              disabled={refreshAttempted}
+            >
+              <RefreshCcw size={16} /> Restaurer la session
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              className="flex items-center gap-2"
+            >
+              <RefreshCcw size={16} /> Rafraîchir la page
+            </Button>
+          </div>
         )}
       </div>
     );
@@ -145,7 +195,7 @@ const Dashboard = () => {
           <CardContent className="flex justify-center">
             <Button 
               onClick={() => navigate('/wizard')}
-              className="bg-mps-primary hover:bg-mps-primary/90"
+              className="bg-mps-primary hover:bg-mps-primary/80"
             >
               <Edit className="mr-2 h-4 w-4" /> Compléter mes informations
             </Button>

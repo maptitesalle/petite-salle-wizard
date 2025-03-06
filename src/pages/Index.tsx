@@ -7,11 +7,12 @@ import { useToast } from '@/hooks/use-toast';
 import { RefreshCw } from 'lucide-react';
 
 const Index = () => {
-  const { isAuthenticated, isLoading, sessionChecked } = useAuth();
+  const { isAuthenticated, isLoading, sessionChecked, refreshSession } = useAuth();
   const { toast } = useToast();
   const [showContent, setShowContent] = useState(false);
   const [showRefreshButton, setShowRefreshButton] = useState(false);
   const [forcedDisplay, setForcedDisplay] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
 
   // Force display of content after 5 seconds regardless of loading state
   useEffect(() => {
@@ -36,6 +37,14 @@ const Index = () => {
       }
     }, 3000);
 
+    // Auto-refresh session after 8 seconds if still loading
+    const sessionRefreshTimer = setTimeout(() => {
+      if (isLoading && !refreshAttempted) {
+        console.log("Index - Auto-refreshing session after timeout");
+        handleSessionRefresh();
+      }
+    }, 8000);
+
     // We should see content as soon as authentication is checked
     if (sessionChecked) {
       setShowContent(true);
@@ -44,12 +53,33 @@ const Index = () => {
     return () => {
       clearTimeout(contentTimer);
       clearTimeout(refreshTimer);
+      clearTimeout(sessionRefreshTimer);
     };
-  }, [isLoading, sessionChecked, showContent, toast]);
+  }, [isLoading, sessionChecked, showContent, toast, refreshAttempted]);
 
   const handleRefresh = () => {
     console.log("Manual refresh triggered");
     window.location.reload();
+  };
+  
+  const handleSessionRefresh = async () => {
+    setRefreshAttempted(true);
+    try {
+      console.log("Attempting to refresh session");
+      await refreshSession();
+      
+      toast({
+        title: "Session rafraîchie",
+        description: "Votre session a été restaurée avec succès",
+      });
+    } catch (error) {
+      console.error("Failed to refresh session:", error);
+      toast({
+        variant: "destructive",
+        title: "Erreur de session",
+        description: "Impossible de restaurer votre session automatiquement",
+      });
+    }
   };
 
   // If user is authenticated, redirect to dashboard from the main Index component
@@ -70,13 +100,23 @@ const Index = () => {
           <p className="text-xl font-medium text-mps-text mb-6">Chargement de votre expérience personnalisée...</p>
           
           {showRefreshButton && (
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              className="mt-4 flex items-center gap-2"
-            >
-              <RefreshCw size={16} /> Rafraîchir la page
-            </Button>
+            <div className="flex flex-col items-center gap-3">
+              <Button 
+                variant="default"
+                onClick={handleSessionRefresh}
+                className="flex items-center gap-2"
+                disabled={refreshAttempted}
+              >
+                <RefreshCw size={16} /> Restaurer la session
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw size={16} /> Rafraîchir la page
+              </Button>
+            </div>
           )}
         </div>
       </div>
