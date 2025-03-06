@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useAuth } from '@/context/AuthContext';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-compon
 import Button from '@/components/ui-components/Button';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { Dumbbell, Activity, Scale, Heart, TrendingUp, TrendingDown, Wheat, Leaf, Egg, Milk, Bone, Lung, Weight, ThermometerSnowflake } from 'lucide-react';
+import { Dumbbell, Activity, Scale, Heart, TrendingUp, AlertCircle, Wheat, Info } from 'lucide-react';
 
 const StepFive: React.FC = () => {
   const { userData, saveUserData, isLoading } = useUserData();

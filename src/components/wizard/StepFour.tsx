@@ -1,33 +1,24 @@
 
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { Card, CardContent } from '@/components/ui-components/Card';
-import { Check, Heart, Bone, Lung, Weight, ThermometerSnowflake } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Check, Heart, AlertCircle, Activity, Scale, Info } from 'lucide-react';
 
 const StepFour: React.FC = () => {
   const { userData, setUserData } = useUserData();
   const { healthConditions } = userData;
 
-  const handleConditionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, checked, type, value } = e.target;
+  const handleConditionChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, type } = e.target;
+    const value = type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
     
-    if (type === 'checkbox') {
-      setUserData(prev => ({
-        ...prev,
-        healthConditions: {
-          ...prev.healthConditions,
-          [name]: checked
-        }
-      }));
-    } else {
-      setUserData(prev => ({
-        ...prev,
-        healthConditions: {
-          ...prev.healthConditions,
-          [name]: value
-        }
-      }));
-    }
+    setUserData(prev => ({
+      ...prev,
+      healthConditions: {
+        ...prev.healthConditions,
+        [name]: value
+      }
+    }));
   };
 
   const conditionOptions = [
@@ -40,25 +31,25 @@ const StepFour: React.FC = () => {
     {
       id: 'arthrose',
       label: 'Arthrose',
-      icon: <Bone className="h-5 w-5 text-mps-primary" />,
+      icon: <AlertCircle className="h-5 w-5 text-mps-primary" />,
       description: 'Dégradation du cartilage des articulations'
     },
     {
       id: 'problemesRespiratoires',
       label: 'Problèmes respiratoires',
-      icon: <Lung className="h-5 w-5 text-mps-primary" />,
+      icon: <Activity className="h-5 w-5 text-mps-primary" />,
       description: 'Asthme, BPCO ou autres troubles respiratoires'
     },
     {
       id: 'obesite',
       label: 'Obésité',
-      icon: <Weight className="h-5 w-5 text-mps-primary" />,
+      icon: <Scale className="h-5 w-5 text-mps-primary" />,
       description: 'IMC supérieur à 30'
     },
     {
       id: 'hypothyroidie',
       label: 'Hypothyroïdie',
-      icon: <ThermometerSnowflake className="h-5 w-5 text-mps-primary" />,
+      icon: <Info className="h-5 w-5 text-mps-primary" />,
       description: 'Production insuffisante d\'hormones thyroïdiennes'
     }
   ];
@@ -85,8 +76,8 @@ const StepFour: React.FC = () => {
                   <input
                     type="checkbox"
                     id={option.id}
-                    name={option.id as keyof typeof healthConditions}
-                    checked={healthConditions[option.id as keyof typeof healthConditions] || false}
+                    name={option.id}
+                    checked={healthConditions[option.id] || false}
                     onChange={handleConditionChange}
                     className="h-5 w-5 rounded border-gray-300 text-mps-primary focus:ring-mps-primary/30"
                   />
@@ -98,7 +89,7 @@ const StepFour: React.FC = () => {
                   </div>
                   <p className="text-sm text-mps-text/80 mt-1">{option.description}</p>
                 </div>
-                {healthConditions[option.id as keyof typeof healthConditions] && (
+                {healthConditions[option.id] && (
                   <div className="ml-2 flex h-5 items-center">
                     <Check className="h-5 w-5 text-mps-success" />
                   </div>
@@ -128,3 +119,4 @@ const StepFour: React.FC = () => {
 };
 
 export default StepFour;
+
