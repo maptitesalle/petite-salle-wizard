@@ -18,54 +18,58 @@ const Wizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { saveUserData, isLoading, userData, setUserData } = useUserData();
+  const { saveUserData, isLoading: dataLoading, userData, setUserData } = useUserData();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   
   const totalSteps = 5;
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Initialize userData if it's null to avoid errors
+  // Initialize userData with default values if it's null
   useEffect(() => {
     console.log('Wizard page - userData check:', userData);
-    if (!userData && !isLoading) {
-      console.log('Wizard page - Initializing userData with default values');
-      setUserData({
-        personalInfo: { sex: '', age: 0 },
-        eGymData: {
-          force: { hautDuCorps: 0, milieuDuCorps: 0, basDuCorps: 0 },
-          flexibilite: { cou: 0, epaules: 0, lombaires: 0, ischios: 0, hanches: 0 },
-          metabolique: { poids: 0, masseGraisseuse: 0, masseMusculaire: 0, ageMetabolique: 0 },
-          cardio: { vo2max: 0, ageCardio: 0 }
-        },
-        objectives: {
-          priseDeMasse: false,
-          perteDePoids: false,
-          ameliorationSouplesse: false,
-          ameliorationCardio: false,
-          maintienForme: false
-        },
-        dietaryRestrictions: {
-          sansGluten: false,
-          vegan: false,
-          sansOeuf: false,
-          sansProduitLaitier: false
-        },
-        healthConditions: {
-          insuffisanceCardiaque: false,
-          arthrose: false,
-          problemesRespiratoires: false,
-          obesite: false,
-          hypothyroidie: false,
-          autresInfoSante: ''
-        },
-        lastUpdated: ''
-      });
-    }
-  }, [userData, isLoading, setUserData]);
-
-  // Add debug logging for Wizard page
-  useEffect(() => {
-    console.log('Wizard page loaded. Auth state:', { isAuthenticated, authLoading, user });
-  }, [isAuthenticated, authLoading, user]);
+    console.log('Wizard page - Auth check:', { isAuthenticated, authLoading, user });
+    
+    // Set a small timeout to ensure auth context has been fully initialized
+    const initTimer = setTimeout(() => {
+      if (!userData && !dataLoading) {
+        console.log('Wizard page - Initializing userData with default values');
+        setUserData({
+          personalInfo: { sex: '', age: 0 },
+          eGymData: {
+            force: { hautDuCorps: 0, milieuDuCorps: 0, basDuCorps: 0 },
+            flexibilite: { cou: 0, epaules: 0, lombaires: 0, ischios: 0, hanches: 0 },
+            metabolique: { poids: 0, masseGraisseuse: 0, masseMusculaire: 0, ageMetabolique: 0 },
+            cardio: { vo2max: 0, ageCardio: 0 }
+          },
+          objectives: {
+            priseDeMasse: false,
+            perteDePoids: false,
+            ameliorationSouplesse: false,
+            ameliorationCardio: false,
+            maintienForme: false
+          },
+          dietaryRestrictions: {
+            sansGluten: false,
+            vegan: false,
+            sansOeuf: false,
+            sansProduitLaitier: false
+          },
+          healthConditions: {
+            insuffisanceCardiaque: false,
+            arthrose: false,
+            problemesRespiratoires: false,
+            obesite: false,
+            hypothyroidie: false,
+            autresInfoSante: ''
+          },
+          lastUpdated: ''
+        });
+      }
+      setIsInitializing(false);
+    }, 1000); // Give auth context time to initialize
+    
+    return () => clearTimeout(initTimer);
+  }, [userData, dataLoading, setUserData, isAuthenticated, authLoading, user]);
   
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -111,7 +115,7 @@ const Wizard = () => {
     try {
       console.log('Wizard page - Rendering step:', currentStep);
       
-      // Ensure userData is initialized before rendering steps
+      // Additional safeguard - If userData is null, don't render the step components
       if (!userData) {
         console.log('Wizard page - userData is null, showing loading state');
         return (
@@ -141,8 +145,8 @@ const Wizard = () => {
     }
   };
   
-  // Show loading state while auth is being determined
-  if (authLoading || isLoading) {
+  // Show loading state while initializing
+  if (authLoading || dataLoading || isInitializing) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center">
         <div className="text-center">
@@ -190,9 +194,9 @@ const Wizard = () => {
             <Button 
               onClick={handleSubmit} 
               className="bg-mps-success hover:bg-mps-success/90"
-              disabled={isLoading}
+              disabled={dataLoading}
             >
-              {isLoading ? 'Sauvegarde...' : 'Sauvegarder'} <Save className="ml-2 h-4 w-4" />
+              {dataLoading ? 'Sauvegarde...' : 'Sauvegarder'} <Save className="ml-2 h-4 w-4" />
             </Button>
           )}
         </div>

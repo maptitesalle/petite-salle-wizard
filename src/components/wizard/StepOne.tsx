@@ -9,6 +9,16 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const StepOne: React.FC = () => {
   const { userData, setUserData } = useUserData();
+  
+  if (!userData) {
+    console.log('StepOne: userData is null, showing loading state');
+    return (
+      <div className="flex justify-center items-center p-10">
+        <div>Chargement des données...</div>
+      </div>
+    );
+  }
+  
   const { eGymData, personalInfo } = userData;
 
   const handlePersonalInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {

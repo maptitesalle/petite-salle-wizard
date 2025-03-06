@@ -146,15 +146,17 @@ interface UserDataProviderProps {
 }
 
 export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   // Load user data function
   const loadUserData = async () => {
     if (!user) {
-      setUserData(null);
+      console.log('UserDataContext: No user found, initializing with default data');
+      setUserData(defaultUserData);
       return;
     }
 
@@ -162,6 +164,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     setError(null);
 
     try {
+      console.log('UserDataContext: Fetching user data for', user.id);
       // Fetch data from Supabase
       const { data, error } = await supabase
         .from('user_data')
@@ -176,6 +179,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       }
 
       if (data) {
+        console.log('UserDataContext: User data found', data);
         // Transform data from database format to app format
         const formattedData: UserData = {
           personalInfo: {
@@ -232,21 +236,41 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
         
         setUserData(formattedData);
       } else {
+        console.log('UserDataContext: No user data found, initializing with default data');
         // Initialize with default data if no data found
         setUserData(defaultUserData);
       }
     } catch (error) {
-      console.error('Failed to load user data:', error);
+      console.error('UserDataContext: Failed to load user data:', error);
       setError('Failed to load your data. Please try again later.');
+      // Still set default data on error
+      setUserData(defaultUserData);
     } finally {
       setIsLoading(false);
+      setInitialized(true);
     }
   };
 
   // Load user data when the user changes
   useEffect(() => {
-    loadUserData();
-  }, [user]);
+    console.log('UserDataContext: Auth state changed', { user, isAuthenticated });
+    
+    // Small delay to ensure auth context is fully updated
+    const timer = setTimeout(() => {
+      loadUserData();
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [user, isAuthenticated]);
+
+  // Initialize with default data if not loading and not initialized
+  useEffect(() => {
+    if (!isLoading && !initialized && userData === null) {
+      console.log('UserDataContext: Initializing with default data (fallback)');
+      setUserData(defaultUserData);
+      setInitialized(true);
+    }
+  }, [isLoading, initialized, userData]);
 
   // Save user data
   const saveUserData = async () => {
@@ -262,6 +286,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     setError(null);
 
     try {
+      console.log('UserDataContext: Saving user data for', user.id);
       // Transform data from app format to database format
       const dbData = {
         user_id: user.id,
@@ -317,18 +342,19 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       // Insert data into Supabase
       const { error: upsertError } = await supabase
         .from('user_data')
-        .upsert(dbData, { onConflict: 'user_id' })
+        .upsert(dbData)
         .select();
 
       if (upsertError) {
         throw upsertError;
       }
       
+      console.log('UserDataContext: User data saved successfully');
       // Fetch the updated data to get the latest timestamp
       await loadUserData();
       
     } catch (error) {
-      console.error('Failed to save user data:', error);
+      console.error('UserDataContext: Failed to save user data:', error);
       setError('Failed to save your data. Please try again later.');
       throw error;
     } finally {

@@ -18,6 +18,7 @@ const Login = () => {
   const location = useLocation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Debug log to check authentication state
   useEffect(() => {
@@ -32,6 +33,21 @@ const Login = () => {
     checkSession();
   }, [isAuthenticated, isLoading]);
 
+  // Add an effect to handle redirects when authentication state changes
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && !isNavigating) {
+      // Get return URL from location state or default to dashboard
+      const returnTo = location.state?.returnTo || '/dashboard';
+      console.log('Login page - User is authenticated, navigating to:', returnTo);
+      setIsNavigating(true);
+      
+      // Add a small delay to ensure proper navigation
+      setTimeout(() => {
+        navigate(returnTo);
+      }, 300);
+    }
+  }, [isAuthenticated, isLoading, navigate, location.state, isNavigating]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -41,20 +57,11 @@ const Login = () => {
       console.log('Login page - Attempting login with:', { email });
       await login(email, password);
       
-      console.log('Login page - Login successful, navigating...');
+      console.log('Login page - Login successful');
       toast({
         title: "Connexion réussie",
         description: "Bienvenue sur Ma P'tite Salle",
       });
-      
-      // Get return URL from location state or default to dashboard
-      const returnTo = location.state?.returnTo || '/dashboard';
-      console.log('Login page - Navigating to:', returnTo);
-      
-      // Add a small timeout to ensure state updates before navigation
-      setTimeout(() => {
-        navigate(returnTo);
-      }, 300);
     } catch (error: any) {
       console.error("Login page - Erreur de connexion:", error);
       
@@ -76,13 +83,6 @@ const Login = () => {
       setIsSubmitting(false);
     }
   };
-
-  // Only redirect if we are authenticated and not loading
-  if (isAuthenticated && !isLoading) {
-    const returnTo = location.state?.returnTo || '/dashboard';
-    console.log('Login page - User is authenticated, redirecting to:', returnTo);
-    return <Navigate to={returnTo} />;
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">

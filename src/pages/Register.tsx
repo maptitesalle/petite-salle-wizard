@@ -18,19 +18,33 @@ const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Debug log to check authentication state
   useEffect(() => {
-    console.log('Auth state on Register page:', { isAuthenticated, isLoading });
+    console.log('Register page - Auth state:', { isAuthenticated, isLoading });
     
     // Check the current session on component mount
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      console.log('Current session on Register page:', data.session);
+      console.log('Register page - Current session:', data.session);
     };
     
     checkSession();
   }, [isAuthenticated, isLoading]);
+
+  // Add an effect to handle redirects when authentication state changes
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && !isNavigating) {
+      console.log('Register page - User is authenticated, navigating to wizard');
+      setIsNavigating(true);
+      
+      // Add a longer delay to ensure auth context is fully updated
+      setTimeout(() => {
+        navigate('/wizard');
+      }, 1000);
+    }
+  }, [isAuthenticated, isLoading, navigate, isNavigating]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +59,7 @@ const Register = () => {
     }
     
     try {
-      console.log('Attempting registration with:', { email, name });
+      console.log('Register page - Attempting registration with:', { email, name });
       await register(email, password, name);
       
       toast({
@@ -53,13 +67,11 @@ const Register = () => {
         description: "Votre compte a été créé avec succès",
       });
       
-      console.log('Registration successful, navigating to /wizard');
-      // Use a delay to ensure that authentication state is properly updated before navigation
-      setTimeout(() => {
-        navigate('/wizard');
-      }, 500);
+      console.log('Register page - Registration successful');
+      
+      // We'll rely on the useEffect above for navigation after auth state updates
     } catch (error: any) {
-      console.error("Erreur d'inscription:", error);
+      console.error("Register page - Erreur d'inscription:", error);
       
       // More specific error message based on the error
       let errorMessage = "Impossible de créer votre compte";
@@ -81,12 +93,6 @@ const Register = () => {
       setIsSubmitting(false);
     }
   };
-
-  // Only redirect if we are authenticated and not loading
-  if (isAuthenticated && !isLoading) {
-    console.log('User is authenticated, redirecting to /wizard');
-    return <Navigate to="/wizard" />;
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
