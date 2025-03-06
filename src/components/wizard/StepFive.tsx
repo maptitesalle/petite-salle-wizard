@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useAuth } from '@/context/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-components/Card';
-import Button from '@/components/ui-components/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Dumbbell, Activity, Scale, Heart, TrendingUp, AlertCircle, Wheat, Info } from 'lucide-react';

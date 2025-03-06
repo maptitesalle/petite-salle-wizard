@@ -42,7 +42,7 @@ const Wizard = () => {
         title: "Non connecté",
         description: "Veuillez vous connecter pour sauvegarder vos données",
       });
-      navigate('/login');
+      navigate('/login', { state: { returnTo: '/wizard' } });
       return;
     }
     
@@ -50,14 +50,15 @@ const Wizard = () => {
       await saveUserData();
       toast({
         title: "Données sauvegardées",
-        description: "Vos informations ont été enregistrées avec succès",
+        description: "Vos informations ont été enregistrées avec succès dans la base de données",
       });
       navigate('/dashboard');
     } catch (error) {
+      console.error("Erreur lors de la sauvegarde:", error);
       toast({
         variant: "destructive",
         title: "Erreur",
-        description: "Impossible de sauvegarder vos données",
+        description: "Impossible de sauvegarder vos données dans la base de données",
       });
     }
   };

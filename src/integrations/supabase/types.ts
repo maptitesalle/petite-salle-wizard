@@ -30,6 +30,114 @@ export type Database = {
         }
         Relationships: []
       }
+      user_data: {
+        Row: {
+          cardio_age_cardio: number | null
+          cardio_vo2max: number | null
+          condition_arthrose: boolean | null
+          condition_autres_info_sante: string | null
+          condition_hypothyroidie: boolean | null
+          condition_insuffisance_cardiaque: boolean | null
+          condition_obesite: boolean | null
+          condition_problemes_respiratoires: boolean | null
+          created_at: string
+          flexibilite_cou: number | null
+          flexibilite_epaules: number | null
+          flexibilite_hanches: number | null
+          flexibilite_ischios: number | null
+          flexibilite_lombaires: number | null
+          force_bas_du_corps: number | null
+          force_haut_du_corps: number | null
+          force_milieu_du_corps: number | null
+          id: string
+          metabolique_age_metabolique: number | null
+          metabolique_masse_graisseuse: number | null
+          metabolique_masse_musculaire: number | null
+          metabolique_poids: number | null
+          objective_amelioration_cardio: boolean | null
+          objective_amelioration_souplesse: boolean | null
+          objective_maintien_forme: boolean | null
+          objective_perte_de_poids: boolean | null
+          objective_prise_de_masse: boolean | null
+          restriction_sans_gluten: boolean | null
+          restriction_sans_oeuf: boolean | null
+          restriction_sans_produit_laitier: boolean | null
+          restriction_vegan: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cardio_age_cardio?: number | null
+          cardio_vo2max?: number | null
+          condition_arthrose?: boolean | null
+          condition_autres_info_sante?: string | null
+          condition_hypothyroidie?: boolean | null
+          condition_insuffisance_cardiaque?: boolean | null
+          condition_obesite?: boolean | null
+          condition_problemes_respiratoires?: boolean | null
+          created_at?: string
+          flexibilite_cou?: number | null
+          flexibilite_epaules?: number | null
+          flexibilite_hanches?: number | null
+          flexibilite_ischios?: number | null
+          flexibilite_lombaires?: number | null
+          force_bas_du_corps?: number | null
+          force_haut_du_corps?: number | null
+          force_milieu_du_corps?: number | null
+          id?: string
+          metabolique_age_metabolique?: number | null
+          metabolique_masse_graisseuse?: number | null
+          metabolique_masse_musculaire?: number | null
+          metabolique_poids?: number | null
+          objective_amelioration_cardio?: boolean | null
+          objective_amelioration_souplesse?: boolean | null
+          objective_maintien_forme?: boolean | null
+          objective_perte_de_poids?: boolean | null
+          objective_prise_de_masse?: boolean | null
+          restriction_sans_gluten?: boolean | null
+          restriction_sans_oeuf?: boolean | null
+          restriction_sans_produit_laitier?: boolean | null
+          restriction_vegan?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cardio_age_cardio?: number | null
+          cardio_vo2max?: number | null
+          condition_arthrose?: boolean | null
+          condition_autres_info_sante?: string | null
+          condition_hypothyroidie?: boolean | null
+          condition_insuffisance_cardiaque?: boolean | null
+          condition_obesite?: boolean | null
+          condition_problemes_respiratoires?: boolean | null
+          created_at?: string
+          flexibilite_cou?: number | null
+          flexibilite_epaules?: number | null
+          flexibilite_hanches?: number | null
+          flexibilite_ischios?: number | null
+          flexibilite_lombaires?: number | null
+          force_bas_du_corps?: number | null
+          force_haut_du_corps?: number | null
+          force_milieu_du_corps?: number | null
+          id?: string
+          metabolique_age_metabolique?: number | null
+          metabolique_masse_graisseuse?: number | null
+          metabolique_masse_musculaire?: number | null
+          metabolique_poids?: number | null
+          objective_amelioration_cardio?: boolean | null
+          objective_amelioration_souplesse?: boolean | null
+          objective_maintien_forme?: boolean | null
+          objective_perte_de_poids?: boolean | null
+          objective_prise_de_masse?: boolean | null
+          restriction_sans_gluten?: boolean | null
+          restriction_sans_oeuf?: boolean | null
+          restriction_sans_produit_laitier?: boolean | null
+          restriction_vegan?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

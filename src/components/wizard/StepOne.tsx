@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-components/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dumbbell, Activity, Scale, Heart } from 'lucide-react';
 
 const StepOne: React.FC = () => {

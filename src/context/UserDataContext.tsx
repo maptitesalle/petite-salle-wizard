@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 // Define types for the user data
 export interface EGymData {
@@ -151,14 +152,73 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     setError(null);
 
     try {
-      // In a real app, this would be an API call to Netlify Functions
-      // For now, we'll use localStorage
-      const storedData = localStorage.getItem(`userData_${user.id}`);
-      
-      if (storedData) {
-        setUserData(JSON.parse(storedData));
+      // Fetch data from Supabase
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        // Transform data from database format to app format
+        const formattedData: UserData = {
+          eGymData: {
+            force: {
+              hautDuCorps: data.force_haut_du_corps || 0,
+              milieuDuCorps: data.force_milieu_du_corps || 0,
+              basDuCorps: data.force_bas_du_corps || 0
+            },
+            flexibilite: {
+              cou: data.flexibilite_cou || 0,
+              epaules: data.flexibilite_epaules || 0,
+              lombaires: data.flexibilite_lombaires || 0,
+              ischios: data.flexibilite_ischios || 0,
+              hanches: data.flexibilite_hanches || 0
+            },
+            metabolique: {
+              poids: data.metabolique_poids || 0,
+              masseGraisseuse: data.metabolique_masse_graisseuse || 0,
+              masseMusculaire: data.metabolique_masse_musculaire || 0,
+              ageMetabolique: data.metabolique_age_metabolique || 0
+            },
+            cardio: {
+              vo2max: data.cardio_vo2max || 0,
+              ageCardio: data.cardio_age_cardio || 0
+            }
+          },
+          objectives: {
+            priseDeMasse: data.objective_prise_de_masse || false,
+            perteDePoids: data.objective_perte_de_poids || false,
+            ameliorationSouplesse: data.objective_amelioration_souplesse || false,
+            ameliorationCardio: data.objective_amelioration_cardio || false,
+            maintienForme: data.objective_maintien_forme || false
+          },
+          dietaryRestrictions: {
+            sansGluten: data.restriction_sans_gluten || false,
+            vegan: data.restriction_vegan || false,
+            sansOeuf: data.restriction_sans_oeuf || false,
+            sansProduitLaitier: data.restriction_sans_produit_laitier || false
+          },
+          healthConditions: {
+            insuffisanceCardiaque: data.condition_insuffisance_cardiaque || false,
+            arthrose: data.condition_arthrose || false,
+            problemesRespiratoires: data.condition_problemes_respiratoires || false,
+            obesite: data.condition_obesite || false,
+            hypothyroidie: data.condition_hypothyroidie || false,
+            autresInfoSante: data.condition_autres_info_sante || ''
+          },
+          lastUpdated: data.updated_at
+        };
+        
+        setUserData(formattedData);
       } else {
-        // Initialize with default data
+        // Initialize with default data if no data found
         setUserData(defaultUserData);
       }
     } catch (error) {
@@ -188,15 +248,67 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     setError(null);
 
     try {
-      // In a real app, this would be an API call to Netlify Functions
-      // For now, we'll use localStorage
-      const updatedData = {
-        ...userData,
-        lastUpdated: new Date().toISOString()
+      // Transform data from app format to database format
+      const dbData = {
+        user_id: user.id,
+        
+        // Force data
+        force_haut_du_corps: userData.eGymData.force.hautDuCorps,
+        force_milieu_du_corps: userData.eGymData.force.milieuDuCorps,
+        force_bas_du_corps: userData.eGymData.force.basDuCorps,
+        
+        // Flexibilite data
+        flexibilite_cou: userData.eGymData.flexibilite.cou,
+        flexibilite_epaules: userData.eGymData.flexibilite.epaules,
+        flexibilite_lombaires: userData.eGymData.flexibilite.lombaires,
+        flexibilite_ischios: userData.eGymData.flexibilite.ischios,
+        flexibilite_hanches: userData.eGymData.flexibilite.hanches,
+        
+        // Metabolique data
+        metabolique_poids: userData.eGymData.metabolique.poids,
+        metabolique_masse_graisseuse: userData.eGymData.metabolique.masseGraisseuse,
+        metabolique_masse_musculaire: userData.eGymData.metabolique.masseMusculaire,
+        metabolique_age_metabolique: userData.eGymData.metabolique.ageMetabolique,
+        
+        // Cardio data
+        cardio_vo2max: userData.eGymData.cardio.vo2max,
+        cardio_age_cardio: userData.eGymData.cardio.ageCardio,
+        
+        // Objectives
+        objective_prise_de_masse: userData.objectives.priseDeMasse,
+        objective_perte_de_poids: userData.objectives.perteDePoids,
+        objective_amelioration_souplesse: userData.objectives.ameliorationSouplesse,
+        objective_amelioration_cardio: userData.objectives.ameliorationCardio,
+        objective_maintien_forme: userData.objectives.maintienForme,
+        
+        // Dietary restrictions
+        restriction_sans_gluten: userData.dietaryRestrictions.sansGluten,
+        restriction_vegan: userData.dietaryRestrictions.vegan,
+        restriction_sans_oeuf: userData.dietaryRestrictions.sansOeuf,
+        restriction_sans_produit_laitier: userData.dietaryRestrictions.sansProduitLaitier,
+        
+        // Health conditions
+        condition_insuffisance_cardiaque: userData.healthConditions.insuffisanceCardiaque,
+        condition_arthrose: userData.healthConditions.arthrose,
+        condition_problemes_respiratoires: userData.healthConditions.problemesRespiratoires,
+        condition_obesite: userData.healthConditions.obesite,
+        condition_hypothyroidie: userData.healthConditions.hypothyroidie,
+        condition_autres_info_sante: userData.healthConditions.autresInfoSante
       };
       
-      localStorage.setItem(`userData_${user.id}`, JSON.stringify(updatedData));
-      setUserData(updatedData);
+      // Insert data into Supabase
+      const { error: upsertError } = await supabase
+        .from('user_data')
+        .upsert(dbData, { onConflict: 'user_id' })
+        .select();
+
+      if (upsertError) {
+        throw upsertError;
+      }
+      
+      // Fetch the updated data to get the latest timestamp
+      await loadUserData();
+      
     } catch (error) {
       console.error('Failed to save user data:', error);
       setError('Failed to save your data. Please try again later.');

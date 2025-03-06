@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { Card, CardContent } from '@/components/ui-components/Card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Check, Wheat, Leaf, Egg, Milk } from 'lucide-react';
 
 const StepThree: React.FC = () => {
