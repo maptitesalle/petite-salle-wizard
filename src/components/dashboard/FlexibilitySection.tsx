@@ -24,12 +24,37 @@ interface FlexibilityPlan {
   exercises: FlexibilityExercise[];
 }
 
+const FLEXIBILITY_STORAGE_KEY = 'mps-flexibility-plan';
+
 const FlexibilitySection: React.FC = () => {
   const { userData } = useUserData();
   const [flexibilityPlan, setFlexibilityPlan] = useState<FlexibilityPlan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Load saved plan from localStorage on mount
+  useEffect(() => {
+    const loadSavedPlan = () => {
+      try {
+        const savedPlan = localStorage.getItem(FLEXIBILITY_STORAGE_KEY);
+        if (savedPlan) {
+          setFlexibilityPlan(JSON.parse(savedPlan));
+          console.log('Flexibility plan loaded from localStorage');
+        } else if (userData) {
+          // Only generate new plan if there's no saved plan
+          generateFlexibilityPlan();
+        }
+      } catch (error) {
+        console.error('Error loading flexibility plan from localStorage:', error);
+        if (userData) {
+          generateFlexibilityPlan();
+        }
+      }
+    };
+
+    loadSavedPlan();
+  }, [userData]);
 
   const generateFlexibilityPlan = async () => {
     setIsLoading(true);
@@ -57,7 +82,9 @@ const FlexibilitySection: React.FC = () => {
         throw new Error(`Erreur de génération: ${data.error}`);
       }
 
+      // Save to state and localStorage
       setFlexibilityPlan(data.content);
+      localStorage.setItem(FLEXIBILITY_STORAGE_KEY, JSON.stringify(data.content));
       
       toast({
         title: "Programme généré",
@@ -77,13 +104,6 @@ const FlexibilitySection: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    // Generate the flexibility plan when the component mounts
-    if (userData) {
-      generateFlexibilityPlan();
-    }
-  }, [userData]);
 
   if (isLoading) {
     return (
@@ -117,7 +137,13 @@ const FlexibilitySection: React.FC = () => {
   if (!flexibilityPlan) {
     return (
       <div className="h-full flex items-center justify-center p-8">
-        <p className="text-mps-text">Chargement des données...</p>
+        <div className="text-center">
+          <p className="text-mps-text mb-4">Chargement des données...</p>
+          <Button onClick={generateFlexibilityPlan}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Générer le programme
+          </Button>
+        </div>
       </div>
     );
   }

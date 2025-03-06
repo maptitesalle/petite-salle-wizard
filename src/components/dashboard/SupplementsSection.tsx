@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,12 +19,35 @@ interface SupplementsPlan {
   supplements: Supplement[];
 }
 
+const SUPPLEMENTS_STORAGE_KEY = 'mps-supplements-plan';
+
 const SupplementsSection: React.FC = () => {
   const { userData } = useUserData();
   const [supplementsPlan, setSupplementsPlan] = useState<SupplementsPlan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const loadSavedPlan = () => {
+      try {
+        const savedPlan = localStorage.getItem(SUPPLEMENTS_STORAGE_KEY);
+        if (savedPlan) {
+          setSupplementsPlan(JSON.parse(savedPlan));
+          console.log('Supplements plan loaded from localStorage');
+        } else if (userData) {
+          generateSupplementsPlan();
+        }
+      } catch (error) {
+        console.error('Error loading supplements plan from localStorage:', error);
+        if (userData) {
+          generateSupplementsPlan();
+        }
+      }
+    };
+
+    loadSavedPlan();
+  }, [userData]);
 
   const generateSupplementsPlan = async () => {
     setIsLoading(true);
@@ -37,7 +59,6 @@ const SupplementsSection: React.FC = () => {
         description: "Veuillez patienter pendant que nous générons vos recommandations personnalisées...",
       });
 
-      // Call our Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('generate-ai-content', {
         body: { 
           userData,
@@ -54,6 +75,7 @@ const SupplementsSection: React.FC = () => {
       }
 
       setSupplementsPlan(data.content);
+      localStorage.setItem(SUPPLEMENTS_STORAGE_KEY, JSON.stringify(data.content));
       
       toast({
         title: "Recommandations générées",
@@ -73,13 +95,6 @@ const SupplementsSection: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    // Generate the supplements plan when the component mounts
-    if (userData) {
-      generateSupplementsPlan();
-    }
-  }, [userData]);
 
   if (isLoading) {
     return (
@@ -113,7 +128,13 @@ const SupplementsSection: React.FC = () => {
   if (!supplementsPlan) {
     return (
       <div className="h-full flex items-center justify-center p-8">
-        <p className="text-mps-text">Chargement des données...</p>
+        <div className="text-center">
+          <p className="text-mps-text mb-4">Chargement des données...</p>
+          <Button onClick={generateSupplementsPlan}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Générer des recommandations
+          </Button>
+        </div>
       </div>
     );
   }

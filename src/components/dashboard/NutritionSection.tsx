@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +31,6 @@ interface NutritionPlan {
   disclaimer: string;
 }
 
-// Default nutrition plan to use as fallback
 const defaultNutritionPlan: NutritionPlan = {
   breakfast: {
     description: "Repas équilibré riche en protéines et fibres",
@@ -58,6 +56,8 @@ const defaultNutritionPlan: NutritionPlan = {
   disclaimer: "Ces recommandations sont générales. Consultez un professionnel de santé pour des conseils personnalisés."
 };
 
+const NUTRITION_STORAGE_KEY = 'mps-nutrition-plan';
+
 const NutritionSection: React.FC = () => {
   const { userData } = useUserData();
   const [nutritionPlan, setNutritionPlan] = useState<NutritionPlan | null>(null);
@@ -66,6 +66,27 @@ const NutritionSection: React.FC = () => {
   const { toast } = useToast();
   const [retryCount, setRetryCount] = useState(0);
   const [useFallbackPlan, setUseFallbackPlan] = useState(false);
+
+  useEffect(() => {
+    const loadSavedPlan = () => {
+      try {
+        const savedPlan = localStorage.getItem(NUTRITION_STORAGE_KEY);
+        if (savedPlan) {
+          setNutritionPlan(JSON.parse(savedPlan));
+          console.log('Nutrition plan loaded from localStorage');
+        } else if (userData) {
+          generateNutritionPlan();
+        }
+      } catch (error) {
+        console.error('Error loading nutrition plan from localStorage:', error);
+        if (userData) {
+          generateNutritionPlan();
+        }
+      }
+    };
+
+    loadSavedPlan();
+  }, [userData, retryCount]);
 
   const generateNutritionPlan = async () => {
     setIsLoading(true);
@@ -80,9 +101,9 @@ const NutritionSection: React.FC = () => {
       console.log("Generating nutrition plan for user data:", userData);
       
       if (useFallbackPlan) {
-        // Si on utilise explicitement le plan par défaut
         console.log("Using default nutrition plan by user choice");
         setNutritionPlan(defaultNutritionPlan);
+        localStorage.setItem(NUTRITION_STORAGE_KEY, JSON.stringify(defaultNutritionPlan));
         toast({
           title: "Plan par défaut utilisé",
           description: "Un plan nutritionnel standard a été chargé",
@@ -92,17 +113,14 @@ const NutritionSection: React.FC = () => {
         return;
       }
       
-      // Définir un timeout pour la requête API
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Délai d'attente dépassé pour l'appel à l'API")), 12000);
       });
       
-      // Appel à notre fonction Supabase avec timeout
       const apiCallPromise = supabase.functions.invoke('generate-nutrition-plan', {
         body: { userData },
       });
       
-      // Course entre le timeout et l'appel API
       const { data, error } = await Promise.race([
         apiCallPromise,
         timeoutPromise.then(() => {
@@ -122,7 +140,6 @@ const NutritionSection: React.FC = () => {
 
       console.log("Received nutrition plan data:", data);
 
-      // Validate that data contains expected content
       if (!data?.content || 
           !data.content.breakfast || 
           !data.content.lunch || 
@@ -133,6 +150,7 @@ const NutritionSection: React.FC = () => {
       }
 
       setNutritionPlan(data.content);
+      localStorage.setItem(NUTRITION_STORAGE_KEY, JSON.stringify(data.content));
       
       toast({
         title: "Plan généré",
@@ -143,9 +161,22 @@ const NutritionSection: React.FC = () => {
       console.error('Error generating nutrition plan:', error);
       setError('Une erreur est survenue lors de la génération du plan nutritionnel.');
       
-      // Use default nutrition plan as fallback
-      console.log("Using default nutrition plan as fallback");
-      setNutritionPlan(defaultNutritionPlan);
+      const savedPlan = localStorage.getItem(NUTRITION_STORAGE_KEY);
+      if (savedPlan) {
+        try {
+          setNutritionPlan(JSON.parse(savedPlan));
+          toast({
+            title: "Plan précédent chargé",
+            description: "Impossible de générer un nouveau plan, nous avons chargé le dernier plan disponible",
+            variant: "default",
+          });
+        } catch (e) {
+          setNutritionPlan(defaultNutritionPlan);
+        }
+      } else {
+        console.log("Using default nutrition plan as fallback");
+        setNutritionPlan(defaultNutritionPlan);
+      }
       
       toast({
         title: "Erreur",
@@ -157,22 +188,23 @@ const NutritionSection: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    // Generate the nutrition plan when the component mounts
-    if (userData) {
-      generateNutritionPlan();
-    }
-  }, [userData, retryCount]);
-
-  // Add a custom retry handler
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
   };
   
-  // Add handler to force using the fallback plan
   const handleUseFallback = () => {
     setUseFallbackPlan(true);
     setRetryCount(prev => prev + 1);
+  };
+
+  const clearSavedPlan = () => {
+    localStorage.removeItem(NUTRITION_STORAGE_KEY);
+    toast({
+      title: "Plan supprimé",
+      description: "Le plan sauvegardé a été supprimé du stockage local",
+    });
+    setNutritionPlan(null);
+    generateNutritionPlan();
   };
 
   if (isLoading) {
@@ -211,16 +243,19 @@ const NutritionSection: React.FC = () => {
   }
 
   if (!nutritionPlan) {
-    // If we still don't have a nutrition plan, use the default one
-    setNutritionPlan(defaultNutritionPlan);
     return (
       <div className="h-full flex items-center justify-center p-8">
-        <p className="text-mps-text">Chargement des données...</p>
+        <div className="text-center">
+          <p className="text-mps-text mb-4">Chargement des données...</p>
+          <Button onClick={generateNutritionPlan}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Générer le plan nutritionnel
+          </Button>
+        </div>
       </div>
     );
   }
 
-  // Safe access to nutrition plan data with fallbacks
   const getDescription = (section: keyof NutritionPlan) => {
     try {
       if (typeof nutritionPlan[section] === 'object') {
@@ -371,8 +406,8 @@ const NutritionSection: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="flex justify-center mt-8 gap-4">
-        <Button onClick={handleRetry} className="flex items-center">
+      <div className="flex flex-col sm:flex-row justify-center mt-8 gap-4">
+        <Button onClick={generateNutritionPlan} className="flex items-center">
           <RefreshCw className="h-4 w-4 mr-2" />
           Régénérer le plan
         </Button>
