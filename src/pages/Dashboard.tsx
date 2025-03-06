@@ -9,10 +9,8 @@ import { useUserData } from '@/context/UserDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { Edit, Utensils, Beaker, ActivitySquare, Dumbbell } from 'lucide-react';
 import NutritionSection from '@/components/dashboard/NutritionSection';
-// Placeholder imports for other sections that aren't yet implemented
-// import SupplementsSection from '@/components/dashboard/SupplementsSection';
-// import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
-// import GymSection from '@/components/dashboard/GymSection';
+import SupplementsSection from '@/components/dashboard/SupplementsSection';
+import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
@@ -26,33 +24,7 @@ const Dashboard = () => {
     }
   }, [isAuthenticated, navigate]);
   
-  // Placeholder components for the sections that aren't implemented yet
-  const SupplementsSection = () => (
-    <div className="p-8 text-center">
-      <Beaker className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
-      <h3 className="text-2xl font-semibold text-mps-text mb-2">Compléments Alimentaires</h3>
-      <p className="text-mps-text/70 mb-6">
-        Découvrez les compléments adaptés à vos objectifs et votre profil
-      </p>
-      <div className="border-2 border-dashed border-mps-primary/30 rounded-lg p-8 text-mps-text/50">
-        Cette section sera disponible prochainement
-      </div>
-    </div>
-  );
-  
-  const FlexibilitySection = () => (
-    <div className="p-8 text-center">
-      <ActivitySquare className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
-      <h3 className="text-2xl font-semibold text-mps-text mb-2">Exercices de Souplesse</h3>
-      <p className="text-mps-text/70 mb-6">
-        Améliorez votre souplesse avec des exercices personnalisés
-      </p>
-      <div className="border-2 border-dashed border-mps-primary/30 rounded-lg p-8 text-mps-text/50">
-        Cette section sera disponible prochainement
-      </div>
-    </div>
-  );
-  
+  // Placeholder component for the section that isn't implemented yet
   const GymSection = () => (
     <div className="p-8 text-center">
       <Dumbbell className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
