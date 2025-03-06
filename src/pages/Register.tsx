@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,10 +40,9 @@ const Register = () => {
       console.log('Register page - User is authenticated, navigating to wizard');
       setRedirectAttempted(true);
       
-      // Make sure user data is loaded before redirecting
+      // Always navigate to wizard after registration
       loadUserData().then(() => {
         console.log('Register page - User data loaded, redirecting to wizard');
-        // Add a longer delay to ensure auth context and user data are fully updated
         setTimeout(() => {
           navigate('/wizard', { replace: true });
         }, 2000);
@@ -106,7 +104,7 @@ const Register = () => {
     }
   };
 
-  // If user is already authenticated on initial render, redirect
+  // If user is already authenticated on initial render, redirect to wizard
   useEffect(() => {
     if (isAuthenticated && !isLoading && user && !redirectAttempted) {
       console.log('Register page - User already authenticated, redirecting to wizard');
