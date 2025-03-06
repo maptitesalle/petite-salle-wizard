@@ -1,400 +1,254 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { OpenAI } from "https://esm.sh/openai@4.0.0/index.js";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Create a OpenAI client
+const openai = new OpenAI({
+  apiKey: Deno.env.get('OPENAI_API_KEY'),
+});
+
+interface NutritionPlan {
+  breakfast: {
+    description: string;
+    examples: string[];
+    timing: string;
+  };
+  lunch: {
+    description: string;
+    examples: string[];
+    timing: string;
+  };
+  dinner: {
+    description: string;
+    examples: string[];
+    timing: string;
+  };
+  snacks: {
+    description: string;
+    examples: string[];
+    timing: string;
+  };
+  hydration: string;
+  disclaimer: string;
 }
 
+const defaultNutritionPlan: NutritionPlan = {
+  breakfast: {
+    description: "Repas équilibré riche en protéines et fibres",
+    examples: ["Œufs brouillés avec des légumes", "Porridge aux fruits rouges"],
+    timing: "7h-9h"
+  },
+  lunch: {
+    description: "Repas complet avec protéines, légumes et glucides complexes",
+    examples: ["Salade composée avec poulet grillé", "Bol de quinoa aux légumes"],
+    timing: "12h-14h"
+  },
+  dinner: {
+    description: "Repas léger et équilibré",
+    examples: ["Poisson grillé avec légumes vapeur", "Soupe de légumes avec tofu"],
+    timing: "19h-21h"
+  },
+  snacks: {
+    description: "Collations saines pour maintenir l'énergie",
+    examples: ["Fruits frais", "Poignée d'amandes", "Yaourt nature"],
+    timing: "10h30 et 16h"
+  },
+  hydration: "Boire au moins 2L d'eau par jour, répartis tout au long de la journée",
+  disclaimer: "Ces recommandations sont générales. Consultez un professionnel de santé pour des conseils personnalisés."
+};
+
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
-
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not set')
-    }
-
-    const { userData } = await req.json()
-    console.log("Received user data:", JSON.stringify(userData))
-
-    // Create system prompt based on user data
-    let systemPrompt = "Tu es un nutritionniste expert. "
-    systemPrompt += "Crée un plan nutritionnel pour 7 jours basé sur les données suivantes du client: "
+    console.log('Nutrition plan generator called');
     
-    // Add dietary restrictions
-    if (userData.dietaryRestrictions) {
-      if (userData.dietaryRestrictions.sansGluten) systemPrompt += "Régime sans gluten. "
-      if (userData.dietaryRestrictions.vegan) systemPrompt += "Régime vegan. "
-      if (userData.dietaryRestrictions.sansOeuf) systemPrompt += "Régime sans œuf. "
-      if (userData.dietaryRestrictions.sansProduitLaitier) systemPrompt += "Régime sans produit laitier. "
-    }
-
-    // Add objectives
-    if (userData.objectives) {
-      if (userData.objectives.priseDeMasse) systemPrompt += "Objectif: prise de masse. "
-      if (userData.objectives.perteDePoids) systemPrompt += "Objectif: perte de poids. "
-      if (userData.objectives.ameliorationSouplesse) systemPrompt += "Objectif: amélioration de la souplesse. "
-      if (userData.objectives.ameliorationCardio) systemPrompt += "Objectif: amélioration du cardio. "
-      if (userData.objectives.maintienForme) systemPrompt += "Objectif: maintien de la forme. "
-    }
-
-    // Add health conditions
-    if (userData.healthConditions) {
-      if (userData.healthConditions.insuffisanceCardiaque) systemPrompt += "Condition: insuffisance cardiaque. "
-      if (userData.healthConditions.arthrose) systemPrompt += "Condition: arthrose. "
-      if (userData.healthConditions.problemesRespiratoires) systemPrompt += "Condition: problèmes respiratoires. "
-      if (userData.healthConditions.obesite) systemPrompt += "Condition: obésité. "
-      if (userData.healthConditions.hypothyroidie) systemPrompt += "Condition: hypothyroïdie. "
-      if (userData.healthConditions.autresInfoSante) systemPrompt += `Autres infos santé: ${userData.healthConditions.autresInfoSante}. `
-    }
-
-    // User prompt to specify format
-    const userPrompt = `Génère un plan nutritionnel pour 7 jours avec le format suivant en JSON:
-    {
-      "disclaimer": "Texte d'avertissement sur les conseils nutritionnels",
-      "alert": "Alerte spécifique si conditions médicales (null si aucune)",
-      "days": [
-        {
-          "day": "Jour 1",
-          "meals": {
-            "breakfast": {
-              "title": "Petit-déjeuner",
-              "description": "Description détaillée",
-              "calories": 450,
-              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
-              "preparation": "Instructions de préparation"
-            },
-            "lunch": { 
-              "title": "Déjeuner",
-              "description": "Description détaillée",
-              "calories": 650,
-              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
-              "preparation": "Instructions de préparation"
-            },
-            "snack": { 
-              "title": "Collation",
-              "description": "Description détaillée",
-              "calories": 250,
-              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
-              "preparation": "Instructions de préparation"
-            },
-            "dinner": { 
-              "title": "Dîner",
-              "description": "Description détaillée",
-              "calories": 550,
-              "ingredients": ["Ingrédient 1", "Ingrédient 2"],
-              "preparation": "Instructions de préparation"
-            }
-          },
-          "totalCalories": 1850,
-          "macros": {
-            "proteins": "25%",
-            "carbs": "45%",
-            "fats": "30%"
-          }
-        }
-      ],
-      "shoppingList": {
-        "categories": {
-          "Fruits et Légumes": ["Pommes", "Bananes", "Carottes"],
-          "Protéines": ["Poulet", "Oeufs", "Tofu"],
-          "Céréales": ["Riz", "Pâtes", "Pain complet"]
-        }
-      }
-    }
-    Assure-toi que le JSON est valide et suit exactement cette structure. N'oublie pas d'inclure les ingrédients et les instructions de préparation pour chaque repas.`;
-
-    console.log("System prompt:", systemPrompt)
-
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      console.error('OpenAI API error:', error)
-      throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`)
-    }
-
-    const data = await response.json()
-    console.log("OpenAI response received")
+    // Parse request body
+    const body = await req.json();
+    const { userData } = body;
     
-    // Extract and parse the JSON content from the response
+    if (!userData) {
+      console.error('Missing userData in request');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Données utilisateur manquantes',
+          content: defaultNutritionPlan
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    
+    console.log('User data received:', JSON.stringify(userData).substring(0, 300) + '...');
+    
+    // Construct a prompt with the user's data
+    let prompt = `Génère un plan nutritionnel quotidien personnalisé pour une personne en fonction des informations suivantes:
+
+- Sexe: ${userData.personalInfo?.sex || 'Non spécifié'}
+- Âge: ${userData.personalInfo?.age || 'Non spécifié'} ans
+- Poids: ${userData.eGymData?.metabolique?.poids || 'Non spécifié'} kg
+- % Masse graisseuse: ${userData.eGymData?.metabolique?.masseGraisseuse || 'Non spécifié'}
+- % Masse musculaire: ${userData.eGymData?.metabolique?.masseMusculaire || 'Non spécifié'}
+
+Objectifs:
+- Prise de masse: ${userData.objectives?.priseDeMasse ? 'Oui' : 'Non'}
+- Perte de poids: ${userData.objectives?.perteDePoids ? 'Oui' : 'Non'}
+- Amélioration souplesse: ${userData.objectives?.ameliorationSouplesse ? 'Oui' : 'Non'}
+- Amélioration cardio: ${userData.objectives?.ameliorationCardio ? 'Oui' : 'Non'}
+- Maintien forme: ${userData.objectives?.maintienForme ? 'Oui' : 'Non'}
+
+Restrictions alimentaires:
+- Sans gluten: ${userData.dietaryRestrictions?.sansGluten ? 'Oui' : 'Non'}
+- Vegan: ${userData.dietaryRestrictions?.vegan ? 'Oui' : 'Non'}
+- Sans œuf: ${userData.dietaryRestrictions?.sansOeuf ? 'Oui' : 'Non'}
+- Sans produit laitier: ${userData.dietaryRestrictions?.sansProduitLaitier ? 'Oui' : 'Non'}
+
+Problèmes de santé:
+- Insuffisance cardiaque: ${userData.healthConditions?.insuffisanceCardiaque ? 'Oui' : 'Non'}
+- Arthrose: ${userData.healthConditions?.arthrose ? 'Oui' : 'Non'}
+- Problèmes respiratoires: ${userData.healthConditions?.problemesRespiratoires ? 'Oui' : 'Non'}
+- Obésité: ${userData.healthConditions?.obesite ? 'Oui' : 'Non'}
+- Hypothyroïdie: ${userData.healthConditions?.hypothyroidie ? 'Oui' : 'Non'}
+
+Le plan nutritionnel doit être structuré exactement avec le format JSON suivant:
+{
+  "breakfast": {
+    "description": "Description du petit-déjeuner recommandé",
+    "examples": ["Exemple 1", "Exemple 2", "Exemple 3"],
+    "timing": "Horaire recommandé"
+  },
+  "lunch": {
+    "description": "Description du déjeuner recommandé",
+    "examples": ["Exemple 1", "Exemple 2", "Exemple 3"],
+    "timing": "Horaire recommandé"
+  },
+  "dinner": {
+    "description": "Description du dîner recommandé",
+    "examples": ["Exemple 1", "Exemple 2", "Exemple 3"],
+    "timing": "Horaire recommandé"
+  },
+  "snacks": {
+    "description": "Description des collations recommandées",
+    "examples": ["Exemple 1", "Exemple 2", "Exemple 3"],
+    "timing": "Horaires recommandés"
+  },
+  "hydration": "Recommandations d'hydratation",
+  "disclaimer": "Avertissement précisant que ces conseils sont généraux et qu'un professionnel de santé devrait être consulté"
+}
+
+Le plan doit être adapté aux objectifs et restrictions alimentaires spécifiques de la personne. Réponds uniquement avec le JSON, sans aucun texte avant ou après.`;
+
+    console.log('Sending request to OpenAI');
+    
+    // Call OpenAI API with failsafe timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+    
     try {
-      const content = data.choices[0].message.content
-      console.log("Raw content from OpenAI:", content)
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo-0125",
+        messages: [
+          { role: "system", content: "Tu es un nutritionniste spécialisé en nutrition sportive. Tu dois générer un plan nutritionnel personnalisé basé sur les données fournies." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 1500,
+        temperature: 0.7,
+      }, { signal: controller.signal });
       
-      // Ensure we have a valid JSON by doing more intensive processing
-      let jsonString = content
+      clearTimeout(timeoutId);
       
-      // Remove markdown code blocks if present
-      if (content.includes("```json")) {
-        jsonString = content.split("```json")[1].split("```")[0].trim()
-      } else if (content.includes("```")) {
-        jsonString = content.split("```")[1].split("```")[0].trim()
-      }
+      let nutritionPlan: NutritionPlan;
       
-      // Try to find JSON object if there's text before or after
-      if (!jsonString.startsWith("{")) {
-        const startIndex = jsonString.indexOf("{")
-        if (startIndex !== -1) {
-          jsonString = jsonString.substring(startIndex)
-        }
-      }
-      
-      if (!jsonString.endsWith("}")) {
-        const endIndex = jsonString.lastIndexOf("}")
-        if (endIndex !== -1) {
-          jsonString = jsonString.substring(0, endIndex + 1)
-        }
-      }
-      
-      console.log("Processed JSON string:", jsonString)
-      
-      // Now parse the cleaned JSON
-      const nutritionPlan = JSON.parse(jsonString)
-      
-      // Validate the structure to ensure it has all required properties
-      if (!nutritionPlan.days || !Array.isArray(nutritionPlan.days) || nutritionPlan.days.length === 0) {
-        throw new Error("Invalid nutrition plan structure: 'days' array is missing or empty")
-      }
-      
-      // Make sure each day has meals
-      nutritionPlan.days.forEach((day, index) => {
-        if (!day.meals) {
-          day.meals = {
-            breakfast: { 
-              title: "Petit-déjeuner", 
-              description: "Plan par défaut - données manquantes", 
-              calories: 0,
-              ingredients: ["Information non disponible"],
-              preparation: "Information non disponible"
-            },
-            lunch: { 
-              title: "Déjeuner", 
-              description: "Plan par défaut - données manquantes", 
-              calories: 0,
-              ingredients: ["Information non disponible"],
-              preparation: "Information non disponible"
-            },
-            snack: { 
-              title: "Collation", 
-              description: "Plan par défaut - données manquantes", 
-              calories: 0,
-              ingredients: ["Information non disponible"],
-              preparation: "Information non disponible"
-            },
-            dinner: { 
-              title: "Dîner", 
-              description: "Plan par défaut - données manquantes", 
-              calories: 0,
-              ingredients: ["Information non disponible"],
-              preparation: "Information non disponible"
-            }
-          }
+      try {
+        // Clean up response
+        const responseText = completion.choices[0].message.content?.trim() || '{}';
+        let cleanedText = responseText;
+        
+        // Remove markdown code fences if present
+        if (cleanedText.startsWith('```json')) {
+          cleanedText = cleanedText.replace(/```json\n/g, '').replace(/\n```/g, '');
+        } else if (cleanedText.startsWith('```')) {
+          cleanedText = cleanedText.replace(/```\n/g, '').replace(/\n```/g, '');
         }
         
-        // Make sure each meal has all required fields
-        ['breakfast', 'lunch', 'snack', 'dinner'].forEach(mealType => {
-          const meal = day.meals[mealType]
-          if (!meal) {
-            day.meals[mealType] = {
-              title: mealType === 'breakfast' ? "Petit-déjeuner" : 
-                     mealType === 'lunch' ? "Déjeuner" : 
-                     mealType === 'snack' ? "Collation" : "Dîner",
-              description: "Plan par défaut - données manquantes",
-              calories: 0,
-              ingredients: ["Information non disponible"],
-              preparation: "Information non disponible"
-            }
-          } else {
-            // Ensure ingredients are present
-            if (!meal.ingredients || !Array.isArray(meal.ingredients)) {
-              meal.ingredients = ["Information non disponible"]
-            }
-            
-            // Ensure preparation is present
-            if (!meal.preparation) {
-              meal.preparation = "Information non disponible"
-            }
-          }
-        })
+        console.log('Raw response text (truncated):', cleanedText.substring(0, 300) + '...');
         
-        // Ensure macros are present
-        if (!day.macros) {
-          day.macros = { proteins: "0%", carbs: "0%", fats: "0%" }
+        // Parse the JSON response
+        nutritionPlan = JSON.parse(cleanedText) as NutritionPlan;
+        
+        // Validate nutrition plan structure
+        const isValid = nutritionPlan && 
+                         nutritionPlan.breakfast && 
+                         nutritionPlan.lunch && 
+                         nutritionPlan.dinner && 
+                         nutritionPlan.snacks &&
+                         typeof nutritionPlan.hydration === 'string' &&
+                         typeof nutritionPlan.disclaimer === 'string';
+        
+        if (!isValid) {
+          console.error('Invalid nutrition plan structure, using default');
+          nutritionPlan = defaultNutritionPlan;
         }
         
-        // Ensure totalCalories is present
-        if (!day.totalCalories) {
-          day.totalCalories = 0
-        }
-      })
-      
-      // Ensure shoppingList is present
-      if (!nutritionPlan.shoppingList || !nutritionPlan.shoppingList.categories) {
-        nutritionPlan.shoppingList = {
-          categories: {
-            "Fruits et Légumes": ["Information non disponible"],
-            "Protéines": ["Information non disponible"],
-            "Céréales": ["Information non disponible"]
+        // Make sure all required fields exist and have correct types
+        ['breakfast', 'lunch', 'dinner', 'snacks'].forEach(meal => {
+          const mealData = nutritionPlan[meal as keyof NutritionPlan] as any;
+          
+          if (!mealData || typeof mealData !== 'object') {
+            nutritionPlan[meal as keyof NutritionPlan] = defaultNutritionPlan[meal as keyof NutritionPlan];
+            return;
           }
+          
+          if (!mealData.description || typeof mealData.description !== 'string') {
+            mealData.description = defaultNutritionPlan[meal as keyof NutritionPlan].description;
+          }
+          
+          if (!mealData.examples || !Array.isArray(mealData.examples) || mealData.examples.length === 0) {
+            mealData.examples = defaultNutritionPlan[meal as keyof NutritionPlan].examples;
+          }
+          
+          if (!mealData.timing || typeof mealData.timing !== 'string') {
+            mealData.timing = defaultNutritionPlan[meal as keyof NutritionPlan].timing;
+          }
+        });
+        
+        if (!nutritionPlan.hydration || typeof nutritionPlan.hydration !== 'string') {
+          nutritionPlan.hydration = defaultNutritionPlan.hydration;
         }
+        
+        if (!nutritionPlan.disclaimer || typeof nutritionPlan.disclaimer !== 'string') {
+          nutritionPlan.disclaimer = defaultNutritionPlan.disclaimer;
+        }
+      } catch (error) {
+        console.error('Error parsing OpenAI response:', error);
+        nutritionPlan = defaultNutritionPlan;
       }
       
-      // Ensure disclaimer is present
-      if (!nutritionPlan.disclaimer) {
-        nutritionPlan.disclaimer = "Ces recommandations nutritionnelles sont générées automatiquement et doivent être validées par un professionnel de santé."
-      }
+      return new Response(
+        JSON.stringify({ content: nutritionPlan }),
+        { headers: { 'Content-Type': 'application/json' } },
+      );
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Error calling OpenAI:', error);
       
-      console.log("Validated nutrition plan structure")
-      
-      return new Response(JSON.stringify({ nutritionPlan }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    } catch (parseError) {
-      console.error('Error parsing JSON from OpenAI response:', parseError)
-      console.error('Raw content:', data.choices[0].message.content)
-      
-      // Return a default nutrition plan structure instead of failing
-      const defaultPlan = {
-        disclaimer: "Ces recommandations nutritionnelles sont des valeurs par défaut suite à une erreur de génération. Veuillez régénérer ou consulter un professionnel.",
-        alert: "Une erreur est survenue lors de la génération de votre plan nutritionnel. Voici un plan par défaut.",
-        days: Array(7).fill(null).map((_, i) => ({
-          day: `Jour ${i+1}`,
-          meals: {
-            breakfast: { 
-              title: "Petit-déjeuner", 
-              description: "Plan par défaut suite à une erreur de génération", 
-              calories: 0,
-              ingredients: ["Veuillez régénérer le plan"],
-              preparation: "Veuillez régénérer le plan"
-            },
-            lunch: { 
-              title: "Déjeuner", 
-              description: "Plan par défaut suite à une erreur de génération", 
-              calories: 0,
-              ingredients: ["Veuillez régénérer le plan"],
-              preparation: "Veuillez régénérer le plan"
-            },
-            snack: { 
-              title: "Collation", 
-              description: "Plan par défaut suite à une erreur de génération", 
-              calories: 0,
-              ingredients: ["Veuillez régénérer le plan"],
-              preparation: "Veuillez régénérer le plan"
-            },
-            dinner: { 
-              title: "Dîner", 
-              description: "Plan par défaut suite à une erreur de génération", 
-              calories: 0,
-              ingredients: ["Veuillez régénérer le plan"],
-              preparation: "Veuillez régénérer le plan"
-            }
-          },
-          totalCalories: 0,
-          macros: {
-            proteins: "0%",
-            carbs: "0%",
-            fats: "0%"
-          }
-        })),
-        shoppingList: {
-          categories: {
-            "Fruits et Légumes": ["Veuillez régénérer le plan"],
-            "Protéines": ["Veuillez régénérer le plan"],
-            "Céréales": ["Veuillez régénérer le plan"]
-          }
-        }
-      };
-      
-      return new Response(JSON.stringify({ 
-        nutritionPlan: defaultPlan,
-        error: "Erreur lors de la génération du plan nutritionnel personnalisé. Un plan par défaut a été généré."
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 // Return 200 with default plan instead of 500
-      })
+      // Return a default nutrition plan in case of API error
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erreur lors de la génération du plan nutritionnel',
+          content: defaultNutritionPlan
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      );
     }
   } catch (error) {
-    console.error('Error in generate-nutrition-plan function:', error)
+    console.error('Unexpected error in nutrition plan generator:', error);
     
-    // Return a default nutrition plan even on serious errors
-    const defaultPlan = {
-      disclaimer: "Ces recommandations nutritionnelles sont des valeurs par défaut suite à une erreur. Veuillez régénérer ou consulter un professionnel.",
-      alert: "Une erreur est survenue lors de la génération de votre plan nutritionnel. Voici un plan par défaut.",
-      days: Array(7).fill(null).map((_, i) => ({
-        day: `Jour ${i+1}`,
-        meals: {
-          breakfast: { 
-            title: "Petit-déjeuner", 
-            description: "Plan par défaut suite à une erreur", 
-            calories: 0,
-            ingredients: ["Veuillez régénérer le plan"],
-            preparation: "Veuillez régénérer le plan"
-          },
-          lunch: { 
-            title: "Déjeuner", 
-            description: "Plan par défaut suite à une erreur", 
-            calories: 0,
-            ingredients: ["Veuillez régénérer le plan"],
-            preparation: "Veuillez régénérer le plan"
-          },
-          snack: { 
-            title: "Collation", 
-            description: "Plan par défaut suite à une erreur", 
-            calories: 0,
-            ingredients: ["Veuillez régénérer le plan"],
-            preparation: "Veuillez régénérer le plan"
-          },
-          dinner: { 
-            title: "Dîner", 
-            description: "Plan par défaut suite à une erreur", 
-            calories: 0,
-            ingredients: ["Veuillez régénérer le plan"],
-            preparation: "Veuillez régénérer le plan"
-          }
-        },
-        totalCalories: 0,
-        macros: {
-          proteins: "0%",
-          carbs: "0%",
-          fats: "0%"
-        }
-      })),
-      shoppingList: {
-        categories: {
-          "Fruits et Légumes": ["Veuillez régénérer le plan"],
-          "Protéines": ["Veuillez régénérer le plan"],
-          "Céréales": ["Veuillez régénérer le plan"]
-        }
-      }
-    };
-    
-    return new Response(JSON.stringify({ 
-      nutritionPlan: defaultPlan,
-      error: error.message || "Une erreur inconnue s'est produite"
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200 // Return 200 with default plan instead of 500
-    })
+    // Return a default nutrition plan for any uncaught errors
+    return new Response(
+      JSON.stringify({ 
+        error: 'Erreur inattendue lors de la génération du plan nutritionnel',
+        content: defaultNutritionPlan
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
   }
 })
