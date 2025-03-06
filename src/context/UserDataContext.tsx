@@ -29,6 +29,11 @@ export interface EGymData {
   };
 }
 
+export interface PersonalInfo {
+  sex: string;
+  age: number;
+}
+
 export interface Objectives {
   priseDeMasse: boolean;
   perteDePoids: boolean;
@@ -54,6 +59,7 @@ export interface HealthConditions {
 }
 
 export interface UserData {
+  personalInfo: PersonalInfo;
   eGymData: EGymData;
   objectives: Objectives;
   dietaryRestrictions: DietaryRestrictions;
@@ -62,6 +68,10 @@ export interface UserData {
 }
 
 const defaultUserData: UserData = {
+  personalInfo: {
+    sex: '',
+    age: 0
+  },
   eGymData: {
     force: {
       hautDuCorps: 0,
@@ -168,6 +178,10 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       if (data) {
         // Transform data from database format to app format
         const formattedData: UserData = {
+          personalInfo: {
+            sex: data.sex || '',
+            age: data.age || 0
+          },
           eGymData: {
             force: {
               hautDuCorps: data.force_haut_du_corps || 0,
@@ -251,6 +265,10 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       // Transform data from app format to database format
       const dbData = {
         user_id: user.id,
+        
+        // Personal Info
+        sex: userData.personalInfo.sex,
+        age: userData.personalInfo.age,
         
         // Force data
         force_haut_du_corps: userData.eGymData.force.hautDuCorps,
