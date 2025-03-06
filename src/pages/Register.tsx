@@ -52,7 +52,12 @@ const Register = () => {
         title: "Inscription réussie",
         description: "Votre compte a été créé avec succès",
       });
-      navigate('/wizard');
+      
+      console.log('Registration successful, navigating to /wizard');
+      // Use a delay to ensure that authentication state is properly updated before navigation
+      setTimeout(() => {
+        navigate('/wizard');
+      }, 500);
     } catch (error: any) {
       console.error("Erreur d'inscription:", error);
       
@@ -77,7 +82,9 @@ const Register = () => {
     }
   };
 
+  // Only redirect if we are authenticated and not loading
   if (isAuthenticated && !isLoading) {
+    console.log('User is authenticated, redirecting to /wizard');
     return <Navigate to="/wizard" />;
   }
 

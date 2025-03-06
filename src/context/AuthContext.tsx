@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setSession(session);
         
         if (session?.user) {
-          console.log("AuthContext: User exists in session, fetching profile");
+          console.log("AuthContext: User exists in session, fetching profile", session.user);
           await fetchUserProfile(session.user);
         } else {
           console.log("AuthContext: No user in session, setting user to null");
@@ -75,12 +75,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Listen for auth changes
     console.log("AuthContext: Setting up auth state change listener");
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log("AuthContext: Auth state changed, event:", _event);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("AuthContext: Auth state changed, event:", event, "session:", session ? "exists" : "null");
       setSession(session);
       
       if (session?.user) {
-        console.log("AuthContext: User in session after state change, fetching profile");
+        console.log("AuthContext: User in session after state change, fetching profile", session.user);
         await fetchUserProfile(session.user);
       } else {
         console.log("AuthContext: No user in session after state change");

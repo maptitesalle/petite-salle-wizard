@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -19,9 +19,14 @@ const Wizard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { saveUserData, isLoading } = useUserData();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   
   const totalSteps = 5;
+
+  // Add debug logging for Wizard page
+  useEffect(() => {
+    console.log('Wizard page loaded. Auth state:', { isAuthenticated, authLoading, user });
+  }, [isAuthenticated, authLoading, user]);
   
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -64,21 +69,39 @@ const Wizard = () => {
   };
   
   const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return <StepOne />;
-      case 2:
-        return <StepTwo />;
-      case 3:
-        return <StepThree />;
-      case 4:
-        return <StepFour />;
-      case 5:
-        return <StepFive />;
-      default:
-        return <StepOne />;
+    try {
+      console.log('Rendering step:', currentStep);
+      switch (currentStep) {
+        case 1:
+          return <StepOne />;
+        case 2:
+          return <StepTwo />;
+        case 3:
+          return <StepThree />;
+        case 4:
+          return <StepFour />;
+        case 5:
+          return <StepFive />;
+        default:
+          return <StepOne />;
+      }
+    } catch (error) {
+      console.error('Error rendering step:', error);
+      return <div>Erreur lors du chargement de cette étape.</div>;
     }
   };
+  
+  // Show loading state while auth is being determined
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4">Chargement...</div>
+          <Progress value={100} className="w-48 h-2 bg-mps-secondary animate-pulse" />
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-mps-secondary/30 py-10 px-4">
