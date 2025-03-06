@@ -3,7 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUserData } from '@/context/UserDataContext';
-import { Utensils, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Utensils, AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const NutritionSection: React.FC = () => {
   const { userData } = useUserData();
@@ -11,71 +13,57 @@ const NutritionSection: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeDay, setActiveDay] = useState(0);
+  const { toast } = useToast();
+
+  const generateNutritionPlan = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      toast({
+        title: "Génération du plan nutritionnel",
+        description: "Veuillez patienter pendant que nous générons votre plan personnalisé...",
+      });
+
+      // Call our Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('generate-nutrition-plan', {
+        body: { userData },
+      });
+
+      if (error) {
+        throw new Error(`Erreur lors de l'appel à l'API: ${error.message}`);
+      }
+
+      if (data.error) {
+        throw new Error(`Erreur de génération: ${data.error}`);
+      }
+
+      setNutritionPlan(data.nutritionPlan);
+      
+      toast({
+        title: "Plan nutritionnel généré",
+        description: "Votre plan nutritionnel personnalisé est prêt !",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error('Error generating nutrition plan:', error);
+      setError('Une erreur est survenue lors de la génération du plan nutritionnel.');
+      
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : 'Une erreur inattendue est survenue',
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulating API call to ChatGPT
-    const generateNutritionPlan = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // In a real app, this would be an API call to ai.js
-        // For now, we'll simulate a response
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Mock data based on user inputs
-        const mockPlan = {
-          disclaimer: "Les conseils nutritionnels ne remplacent pas un suivi médical professionnel.",
-          alert: userData?.healthConditions.arthrose ? "En raison de votre arthrose, il est recommandé de privilégier les aliments anti-inflammatoires." : null,
-          days: Array.from({ length: 7 }, (_, i) => ({
-            day: `Jour ${i + 1}`,
-            meals: {
-              breakfast: {
-                title: "Petit-déjeuner",
-                description: userData?.dietaryRestrictions.vegan 
-                  ? "Smoothie bowl avec banane, fruits rouges, graines de chia et lait d'amande" 
-                  : "Œufs brouillés avec épinards et toast complet",
-                calories: 450
-              },
-              lunch: {
-                title: "Déjeuner",
-                description: userData?.objectives.priseDeMasse 
-                  ? "Poulet grillé, quinoa et légumes rôtis" 
-                  : "Salade composée avec protéines maigres et vinaigrette légère",
-                calories: 650
-              },
-              snack: {
-                title: "Collation",
-                description: "Yaourt grec avec fruits frais et noix",
-                calories: 200
-              },
-              dinner: {
-                title: "Dîner",
-                description: userData?.objectives.perteDePoids 
-                  ? "Poisson au four avec légumes vapeur" 
-                  : "Dahl de lentilles corail avec riz complet",
-                calories: 550
-              }
-            },
-            totalCalories: 1850,
-            macros: {
-              proteins: "25%",
-              carbs: "45%",
-              fats: "30%"
-            }
-          }))
-        };
-        
-        setNutritionPlan(mockPlan);
-      } catch (error) {
-        console.error('Error generating nutrition plan:', error);
-        setError('Une erreur est survenue lors de la génération du plan nutritionnel.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    generateNutritionPlan();
+    // Generate the nutrition plan when the component mounts
+    if (userData) {
+      generateNutritionPlan();
+    }
   }, [userData]);
 
   if (isLoading) {
@@ -97,7 +85,8 @@ const NutritionSection: React.FC = () => {
             <AlertTriangle className="h-12 w-12 text-mps-error mx-auto mb-4" />
             <h3 className="text-lg font-medium text-mps-error mb-2">Une erreur est survenue</h3>
             <p className="text-mps-text mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>
+            <Button onClick={generateNutritionPlan}>
+              <RefreshCw className="h-4 w-4 mr-2" />
               Réessayer
             </Button>
           </CardContent>
@@ -190,12 +179,16 @@ const NutritionSection: React.FC = () => {
             </div>
           </div>
         </CardContent>
-        <CardFooter className="text-sm text-mps-text/80 italic">
+        <CardFooter className="pt-4 text-sm text-mps-text/80 italic">
           {nutritionPlan.disclaimer}
         </CardFooter>
       </Card>
 
       <div className="flex justify-center mt-8">
+        <Button onClick={generateNutritionPlan} className="mr-4">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Régénérer le plan
+        </Button>
         <Button variant="secondary" className="flex items-center space-x-2">
           <span>Voir plus de détails</span>
           <ArrowRight className="h-4 w-4" />
