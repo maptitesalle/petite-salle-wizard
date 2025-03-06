@@ -45,21 +45,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const getSession = async () => {
       setIsLoading(true);
       try {
+        console.log("AuthContext: Fetching initial session");
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
+          console.error("AuthContext: Error fetching session", error);
           throw error;
         }
 
+        console.log("AuthContext: Session retrieved", session ? "Session exists" : "No session");
         setSession(session);
         
         if (session?.user) {
+          console.log("AuthContext: User exists in session, fetching profile");
           await fetchUserProfile(session.user);
         } else {
+          console.log("AuthContext: No user in session, setting user to null");
           setUser(null);
         }
       } catch (error) {
-        console.error('Error fetching session:', error);
+        console.error('AuthContext: Error fetching session:', error);
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -69,17 +74,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     getSession();
 
     // Listen for auth changes
+    console.log("AuthContext: Setting up auth state change listener");
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log("AuthContext: Auth state changed, event:", _event);
       setSession(session);
       
       if (session?.user) {
+        console.log("AuthContext: User in session after state change, fetching profile");
         await fetchUserProfile(session.user);
       } else {
+        console.log("AuthContext: No user in session after state change");
         setUser(null);
       }
     });
 
     return () => {
+      console.log("AuthContext: Cleaning up auth state change listener");
       subscription.unsubscribe();
     };
   }, []);
@@ -87,6 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Fetch the user's profile from the profiles table
   const fetchUserProfile = async (authUser: User) => {
     try {
+      console.log("AuthContext: Fetching user profile for id:", authUser.id);
       const { data, error } = await supabase
         .from('profiles')
         .select('name')
@@ -94,18 +105,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .single();
       
       if (error) {
+        console.error("AuthContext: Error fetching user profile:", error);
         throw error;
       }
 
+      console.log("AuthContext: Profile data retrieved:", data);
       setUser({
         id: authUser.id,
         email: authUser.email || '',
         name: data?.name || '',
       });
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('AuthContext: Error fetching user profile:', error);
       
       // Fallback to just the auth user data
+      console.log("AuthContext: Using fallback user data");
       setUser({
         id: authUser.id,
         email: authUser.email || '',
@@ -117,16 +131,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("AuthContext: Attempting login with email:", email);
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
       if (error) {
+        console.error("AuthContext: Login failed:", error);
         throw error;
       }
+      
+      console.log("AuthContext: Login successful, session:", data.session ? "Session exists" : "No session");
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('AuthContext: Login failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -135,13 +153,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      console.log("AuthContext: Attempting logout");
       const { error } = await supabase.auth.signOut();
       if (error) {
+        console.error("AuthContext: Logout failed:", error);
         throw error;
       }
+      console.log("AuthContext: Logout successful");
       setUser(null);
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('AuthContext: Logout failed:', error);
       throw error;
     }
   };
@@ -149,7 +170,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (email: string, password: string, name: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log("AuthContext: Attempting registration with email:", email, "and name:", name);
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -160,10 +182,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) {
+        console.error("AuthContext: Registration failed:", error);
         throw error;
       }
+      
+      console.log("AuthContext: Registration successful, session:", data.session ? "Session exists" : "No session");
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('AuthContext: Registration failed:', error);
       throw error;
     } finally {
       setIsLoading(false);

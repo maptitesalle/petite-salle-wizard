@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Register = () => {
   const [email, setEmail] = useState('');
@@ -16,13 +17,37 @@ const Register = () => {
   const { register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Debug log to check authentication state
+  useEffect(() => {
+    console.log('Auth state on Register page:', { isAuthenticated, isLoading });
+    
+    // Check the current session on component mount
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      console.log('Current session on Register page:', data.session);
+    };
+    
+    checkSession();
+  }, [isAuthenticated, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setIsSubmitting(true);
+    
+    // Basic validation
+    if (password.length < 6) {
+      setErrorMsg("Le mot de passe doit contenir au moins 6 caractères");
+      setIsSubmitting(false);
+      return;
+    }
     
     try {
+      console.log('Attempting registration with:', { email, name });
       await register(email, password, name);
+      
       toast({
         title: "Inscription réussie",
         description: "Votre compte a été créé avec succès",
@@ -30,16 +55,29 @@ const Register = () => {
       navigate('/wizard');
     } catch (error: any) {
       console.error("Erreur d'inscription:", error);
-      setErrorMsg(error.message || "Impossible de créer votre compte");
+      
+      // More specific error message based on the error
+      let errorMessage = "Impossible de créer votre compte";
+      if (error.message?.includes('email already in use')) {
+        errorMessage = "Cette adresse email est déjà utilisée";
+      } else if (error.message?.includes('invalid email')) {
+        errorMessage = "Format d'email invalide";
+      } else if (error.message?.includes('weak password')) {
+        errorMessage = "Mot de passe trop faible. Utilisez au moins 6 caractères.";
+      }
+      
+      setErrorMsg(errorMessage);
       toast({
         variant: "destructive",
         title: "Erreur d'inscription",
-        description: error.message || "Impossible de créer votre compte",
+        description: errorMessage,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !isLoading) {
     return <Navigate to="/wizard" />;
   }
 
@@ -66,6 +104,7 @@ const Register = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -77,6 +116,7 @@ const Register = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -88,11 +128,16 @@ const Register = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  disabled={isSubmitting}
                 />
                 <p className="text-xs text-gray-500">Le mot de passe doit contenir au moins 6 caractères</p>
               </div>
-              <Button type="submit" className="w-full bg-mps-primary" disabled={isLoading}>
-                {isLoading ? 'Inscription en cours...' : 'S\'inscrire'}
+              <Button 
+                type="submit" 
+                className="w-full bg-mps-primary" 
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting ? 'Inscription en cours...' : 'S\'inscrire'}
               </Button>
             </div>
           </form>

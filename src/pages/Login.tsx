@@ -1,12 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -14,32 +15,66 @@ const Login = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Debug log to check authentication state
+  useEffect(() => {
+    console.log('Auth state:', { isAuthenticated, isLoading });
+    
+    // Check the current session on component mount
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      console.log('Current session:', data.session);
+    };
+    
+    checkSession();
+  }, [isAuthenticated, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setIsSubmitting(true);
     
     try {
+      console.log('Attempting login with:', { email });
       await login(email, password);
+      
       toast({
         title: "Connexion réussie",
         description: "Bienvenue sur Ma P'tite Salle",
       });
-      navigate('/dashboard');
+      
+      // Get return URL from location state or default to dashboard
+      const returnTo = location.state?.returnTo || '/dashboard';
+      console.log('Navigating to:', returnTo);
+      navigate(returnTo);
     } catch (error: any) {
       console.error("Erreur de connexion:", error);
-      setErrorMsg(error.message || "Email ou mot de passe incorrect");
+      
+      // More specific error message
+      let errorMessage = "Email ou mot de passe incorrect";
+      if (error.message?.includes('Invalid login credentials')) {
+        errorMessage = "Identifiants invalides. Vérifiez votre email et mot de passe.";
+      } else if (error.message?.includes('Email not confirmed')) {
+        errorMessage = "Veuillez confirmer votre email avant de vous connecter.";
+      }
+      
+      setErrorMsg(errorMessage);
       toast({
         variant: "destructive",
         title: "Erreur de connexion",
-        description: error.message || "Email ou mot de passe incorrect",
+        description: errorMessage,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" />;
+  if (isAuthenticated && !isLoading) {
+    const returnTo = location.state?.returnTo || '/dashboard';
+    return <Navigate to={returnTo} />;
   }
 
   return (
@@ -65,6 +100,7 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -75,10 +111,15 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
-              <Button type="submit" className="w-full bg-mps-primary" disabled={isLoading}>
-                {isLoading ? 'Connexion en cours...' : 'Se connecter'}
+              <Button 
+                type="submit" 
+                className="w-full bg-mps-primary" 
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
               </Button>
             </div>
           </form>
