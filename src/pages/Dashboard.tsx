@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,22 +7,60 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useUserData } from '@/context/UserDataContext';
 import { useToast } from '@/hooks/use-toast';
-import { Edit, Utensils, Beaker, ActivitySquare, Dumbbell } from 'lucide-react';
+import { Edit, Utensils, Beaker, ActivitySquare, Dumbbell, RefreshCcw } from 'lucide-react';
 import NutritionSection from '@/components/dashboard/NutritionSection';
 import SupplementsSection from '@/components/dashboard/SupplementsSection';
 import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
 
 const Dashboard = () => {
-  const { isAuthenticated, user } = useAuth();
-  const { userData, isLoading } = useUserData();
+  const { isAuthenticated, user, isLoading, sessionChecked } = useAuth();
+  const { userData, isLoading: dataLoading } = useUserData();
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // Add state to track if we're showing a timeout message
+  const [showTimeout, setShowTimeout] = React.useState(false);
+  
   useEffect(() => {
-    if (!isAuthenticated) {
+    // If we've checked the session and the user is not authenticated, redirect to login
+    if (sessionChecked && !isAuthenticated && !isLoading) {
       navigate('/login');
     }
-  }, [isAuthenticated, navigate]);
+    
+    // Set a timer to show the refresh button after 5 seconds if still loading
+    const timer = setTimeout(() => {
+      setShowTimeout(true);
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, isLoading, navigate, sessionChecked]);
+  
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+  
+  // If still checking authentication or loading user data, show a loading state with a refresh button after timeout
+  if (isLoading || !sessionChecked) {
+    return (
+      <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center">
+        <div className="animate-pulse-subtle mb-6">
+          <div className="h-12 w-12 rounded-full bg-mps-primary/50 mb-4 mx-auto"></div>
+          <div className="h-6 w-48 bg-mps-primary/20 mb-2 rounded"></div>
+          <div className="h-4 w-64 bg-mps-primary/10 rounded"></div>
+        </div>
+        
+        {showTimeout && (
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            className="mt-4 flex items-center gap-2"
+          >
+            <RefreshCcw size={16} /> Rafraîchir la page
+          </Button>
+        )}
+      </div>
+    );
+  }
   
   const getFlexibilityStatus = (value: number): string => {
     if (value >= 75) return 'excellent';
@@ -42,7 +81,7 @@ const Dashboard = () => {
     </div>
   );
   
-  if (isLoading) {
+  if (dataLoading) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center">
         <Card className="w-full max-w-md">

@@ -20,7 +20,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,  // Changé à true pour recharger les données lors du retour sur la page
+      staleTime: 10000,            // Considérer les données comme fraîches pendant 10 secondes
     },
   },
 });
@@ -31,23 +32,50 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, sessionChecked } = useAuth();
   const location = useLocation();
+  const [showTimeout, setShowTimeout] = React.useState(false);
 
-  console.log("Protected route check:", { isAuthenticated, isLoading, path: location.pathname });
+  console.log("Protected route check:", { isAuthenticated, isLoading, path: location.pathname, sessionChecked });
 
-  // If authentication is still loading, show a loading state
-  if (isLoading) {
+  useEffect(() => {
+    // Set a timer to show the refresh button after 5 seconds if still loading
+    const timer = setTimeout(() => {
+      setShowTimeout(true);
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Si nous sommes toujours en train de vérifier la session, mais que ça prend trop de temps
+  if ((isLoading || !sessionChecked) && showTimeout) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <div className="mb-4">Chargement...</div>
+        <div className="text-sm text-mps-primary">
+          <button 
+            onClick={() => window.location.reload()}
+            className="underline hover:text-mps-primary/80"
+          >
+            Rafraîchir la page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Si nous sommes toujours en train de vérifier la session
+  if (isLoading || !sessionChecked) {
     return <div className="flex items-center justify-center h-screen">Chargement...</div>;
   }
 
-  // If not authenticated, redirect to login with the return path
+  // Si non authentifié, rediriger vers login avec le chemin de retour
   if (!isAuthenticated) {
     console.log("User not authenticated, redirecting to login");
     return <Navigate to="/login" state={{ returnTo: location.pathname }} replace />;
   }
 
-  // If authenticated, render the children
+  // Si authentifié, afficher les enfants
   return <>{children}</>;
 };
 
@@ -99,42 +127,57 @@ const HomeRoute = () => {
   return <Index />;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <UserDataProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<HomeRoute />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route 
-                path="/dashboard" 
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/wizard" 
-                element={
-                  <ProtectedRoute>
-                    <Wizard />
-                  </ProtectedRoute>
-                } 
-              />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </UserDataProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  // Ajouter un gestionnaire d'événement pour les changements de visibilité de la page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Recharger les données lorsque la page devient visible à nouveau
+        queryClient.invalidateQueries();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <UserDataProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<HomeRoute />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route 
+                  path="/dashboard" 
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/wizard" 
+                  element={
+                    <ProtectedRoute>
+                      <Wizard />
+                    </ProtectedRoute>
+                  } 
+                />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </UserDataProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
