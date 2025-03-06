@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useAuth } from '@/context/AuthContext';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { Dumbbell, Activity, Scale, Heart, TrendingUp, AlertCircle, Wheat, Info } from 'lucide-react';
+import { Dumbbell, Activity, Scale, Heart, TrendingUp, AlertCircle, Wheat, Info, User } from 'lucide-react';
 
 const StepFive: React.FC = () => {
   const { userData, saveUserData, isLoading } = useUserData();
@@ -52,6 +53,27 @@ const StepFive: React.FC = () => {
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center space-x-3">
+              <User className="h-6 w-6 text-mps-primary" />
+              <CardTitle>Informations personnelles</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              <li className="flex justify-between">
+                <span className="text-mps-text">Sexe:</span>
+                <span className="font-medium">{userData.personalInfo.sex || 'Non renseigné'}</span>
+              </li>
+              <li className="flex justify-between">
+                <span className="text-mps-text">Âge:</span>
+                <span className="font-medium">{userData.personalInfo.age || 'Non renseigné'}</span>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <div className="flex items-center space-x-3">

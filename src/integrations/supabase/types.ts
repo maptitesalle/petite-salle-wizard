@@ -32,6 +32,7 @@ export type Database = {
       }
       user_data: {
         Row: {
+          age: number | null
           cardio_age_cardio: number | null
           cardio_vo2max: number | null
           condition_arthrose: boolean | null
@@ -63,10 +64,12 @@ export type Database = {
           restriction_sans_oeuf: boolean | null
           restriction_sans_produit_laitier: boolean | null
           restriction_vegan: boolean | null
+          sex: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          age?: number | null
           cardio_age_cardio?: number | null
           cardio_vo2max?: number | null
           condition_arthrose?: boolean | null
@@ -98,10 +101,12 @@ export type Database = {
           restriction_sans_oeuf?: boolean | null
           restriction_sans_produit_laitier?: boolean | null
           restriction_vegan?: boolean | null
+          sex?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          age?: number | null
           cardio_age_cardio?: number | null
           cardio_vo2max?: number | null
           condition_arthrose?: boolean | null
@@ -133,6 +138,7 @@ export type Database = {
           restriction_sans_oeuf?: boolean | null
           restriction_sans_produit_laitier?: boolean | null
           restriction_vegan?: boolean | null
+          sex?: string | null
           updated_at?: string
           user_id?: string
         }
