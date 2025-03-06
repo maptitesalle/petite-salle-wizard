@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useAuth } from '@/context/AuthContext';
@@ -271,12 +270,11 @@ const StepFive: React.FC = () => {
       <div className="flex justify-center pt-6">
         <Button
           onClick={handleSubmit}
-          isLoading={isLoading}
           disabled={isLoading}
           size="lg"
           className="px-10"
         >
-          Valider et Enregistrer
+          {isLoading ? 'Validation en cours...' : 'Valider et Enregistrer'}
         </Button>
       </div>
     </div>

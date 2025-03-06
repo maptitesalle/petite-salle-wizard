@@ -43,7 +43,7 @@ const NutritionSection: React.FC = () => {
       toast({
         title: "Plan nutritionnel généré",
         description: "Votre plan nutritionnel personnalisé est prêt !",
-        variant: "success",
+        variant: "default", // Modifié "success" en "default"
       });
     } catch (error) {
       console.error('Error generating nutrition plan:', error);
