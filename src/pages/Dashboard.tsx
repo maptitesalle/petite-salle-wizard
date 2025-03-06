@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useUserData } from '@/context/UserDataContext';
 import { useToast } from '@/hooks/use-toast';
-import { Edit, Utensils, Flask, ActivitySquare, Dumbbell } from 'lucide-react';
+import { Edit, Utensils, Beaker, ActivitySquare, Dumbbell } from 'lucide-react';
 import NutritionSection from '@/components/dashboard/NutritionSection';
 // Placeholder imports for other sections that aren't yet implemented
 // import SupplementsSection from '@/components/dashboard/SupplementsSection';
@@ -16,22 +16,20 @@ import NutritionSection from '@/components/dashboard/NutritionSection';
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
-  const { userData, loadUserData, isLoading } = useUserData();
+  const { userData, isLoading } = useUserData();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   useEffect(() => {
-    if (isAuthenticated) {
-      loadUserData();
-    } else {
+    if (!isAuthenticated) {
       navigate('/login');
     }
-  }, [isAuthenticated, navigate, loadUserData]);
+  }, [isAuthenticated, navigate]);
   
   // Placeholder components for the sections that aren't implemented yet
   const SupplementsSection = () => (
     <div className="p-8 text-center">
-      <Flask className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
+      <Beaker className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
       <h3 className="text-2xl font-semibold text-mps-text mb-2">Compléments Alimentaires</h3>
       <p className="text-mps-text/70 mb-6">
         Découvrez les compléments adaptés à vos objectifs et votre profil
@@ -113,7 +111,7 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-mps-primary">Tableau de Bord</h1>
           <p className="text-mps-text/80">
-            Bienvenue {user?.displayName || 'Membre'}, voici vos recommandations personnalisées
+            Bienvenue {user?.name || 'Membre'}, voici vos recommandations personnalisées
           </p>
         </div>
         
@@ -123,7 +121,7 @@ const Dashboard = () => {
               <Utensils className="mr-2 h-4 w-4" /> Nutrition
             </TabsTrigger>
             <TabsTrigger value="supplements" className="data-[state=active]:bg-mps-primary data-[state=active]:text-white">
-              <Flask className="mr-2 h-4 w-4" /> Compléments
+              <Beaker className="mr-2 h-4 w-4" /> Compléments
             </TabsTrigger>
             <TabsTrigger value="flexibility" className="data-[state=active]:bg-mps-primary data-[state=active]:text-white">
               <ActivitySquare className="mr-2 h-4 w-4" /> Souplesse

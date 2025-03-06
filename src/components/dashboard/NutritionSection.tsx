@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui-components/Card';
-import Button from '@/components/ui-components/Button';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useUserData } from '@/context/UserDataContext';
 import { Utensils, AlertTriangle, ArrowRight } from 'lucide-react';
 
@@ -26,20 +26,20 @@ const NutritionSection: React.FC = () => {
         // Mock data based on user inputs
         const mockPlan = {
           disclaimer: "Les conseils nutritionnels ne remplacent pas un suivi médical professionnel.",
-          alert: userData.healthConditions.arthrose ? "En raison de votre arthrose, il est recommandé de privilégier les aliments anti-inflammatoires." : null,
+          alert: userData?.healthConditions.arthrose ? "En raison de votre arthrose, il est recommandé de privilégier les aliments anti-inflammatoires." : null,
           days: Array.from({ length: 7 }, (_, i) => ({
             day: `Jour ${i + 1}`,
             meals: {
               breakfast: {
                 title: "Petit-déjeuner",
-                description: userData.dietaryRestrictions.vegan 
+                description: userData?.dietaryRestrictions.vegan 
                   ? "Smoothie bowl avec banane, fruits rouges, graines de chia et lait d'amande" 
                   : "Œufs brouillés avec épinards et toast complet",
                 calories: 450
               },
               lunch: {
                 title: "Déjeuner",
-                description: userData.objectives.priseDeMasse 
+                description: userData?.objectives.priseDeMasse 
                   ? "Poulet grillé, quinoa et légumes rôtis" 
                   : "Salade composée avec protéines maigres et vinaigrette légère",
                 calories: 650
@@ -51,7 +51,7 @@ const NutritionSection: React.FC = () => {
               },
               dinner: {
                 title: "Dîner",
-                description: userData.objectives.perteDePoids 
+                description: userData?.objectives.perteDePoids 
                   ? "Poisson au four avec légumes vapeur" 
                   : "Dahl de lentilles corail avec riz complet",
                 calories: 550

@@ -89,7 +89,7 @@ const Wizard = () => {
           <p className="text-mps-text text-center mb-6">
             Étape {currentStep} sur {totalSteps}
           </p>
-          <Progress value={(currentStep / totalSteps) * 100} className="h-2 bg-mps-secondary" indicatorClassName="bg-mps-primary" />
+          <Progress value={(currentStep / totalSteps) * 100} className="h-2 bg-mps-secondary" />
         </div>
         
         <Card className="mb-6 border-mps-primary/20">

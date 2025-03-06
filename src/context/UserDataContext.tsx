@@ -110,9 +110,10 @@ const defaultUserData: UserData = {
 };
 
 interface UserDataContextType {
-  userData: UserData;
-  setUserData: React.Dispatch<React.SetStateAction<UserData>>;
+  userData: UserData | null;
+  setUserData: React.Dispatch<React.SetStateAction<UserData | null>>;
   saveUserData: () => Promise<void>;
+  loadUserData: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -135,39 +136,41 @@ interface UserDataProviderProps {
 
 export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) => {
   const { user } = useAuth();
-  const [userData, setUserData] = useState<UserData>(defaultUserData);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load user data from localStorage when the user changes
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!user) {
+  // Load user data function
+  const loadUserData = async () => {
+    if (!user) {
+      setUserData(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // In a real app, this would be an API call to Netlify Functions
+      // For now, we'll use localStorage
+      const storedData = localStorage.getItem(`userData_${user.id}`);
+      
+      if (storedData) {
+        setUserData(JSON.parse(storedData));
+      } else {
+        // Initialize with default data
         setUserData(defaultUserData);
-        return;
       }
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+      setError('Failed to load your data. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // In a real app, this would be an API call to Netlify Functions
-        // For now, we'll use localStorage
-        const storedData = localStorage.getItem(`userData_${user.id}`);
-        
-        if (storedData) {
-          setUserData(JSON.parse(storedData));
-        } else {
-          setUserData(defaultUserData);
-        }
-      } catch (error) {
-        console.error('Failed to load user data:', error);
-        setError('Failed to load your data. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+  // Load user data when the user changes
+  useEffect(() => {
     loadUserData();
   }, [user]);
 
@@ -175,6 +178,10 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   const saveUserData = async () => {
     if (!user) {
       throw new Error('You must be logged in to save data');
+    }
+
+    if (!userData) {
+      throw new Error('No user data to save');
     }
 
     setIsLoading(true);
@@ -203,6 +210,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     userData,
     setUserData,
     saveUserData,
+    loadUserData,
     isLoading,
     error
   };
