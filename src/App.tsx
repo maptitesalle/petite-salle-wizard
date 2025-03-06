@@ -8,7 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { UserDataProvider } from "./context/UserDataContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 // Import pages
 import Login from "./pages/Login";
@@ -19,9 +19,10 @@ import Wizard from "./pages/Wizard";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      refetchOnWindowFocus: true,  // Changé à true pour recharger les données lors du retour sur la page
-      staleTime: 10000,            // Considérer les données comme fraîches pendant 10 secondes
+      retry: 3,                     // Augmenter le nombre de tentatives
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponentiel avec max de 30s
+      refetchOnWindowFocus: true,   // Changé à true pour recharger les données lors du retour sur la page
+      staleTime: 10000,             // Considérer les données comme fraîches pendant 10 secondes
     },
   },
 });
@@ -34,7 +35,7 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading, sessionChecked } = useAuth();
   const location = useLocation();
-  const [showTimeout, setShowTimeout] = React.useState(false);
+  const [showTimeout, setShowTimeout] = useState(false);
 
   console.log("Protected route check:", { isAuthenticated, isLoading, path: location.pathname, sessionChecked });
 
@@ -47,11 +48,23 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Ajouter un délai maximal pour la vérification d'auth (15 secondes)
+  useEffect(() => {
+    const maxAuthWait = setTimeout(() => {
+      if (isLoading || !sessionChecked) {
+        console.log("Auth check taking too long, forcing a refresh");
+        window.location.reload();
+      }
+    }, 15000);
+    
+    return () => clearTimeout(maxAuthWait);
+  }, [isLoading, sessionChecked]);
+
   // Si nous sommes toujours en train de vérifier la session, mais que ça prend trop de temps
   if ((isLoading || !sessionChecked) && showTimeout) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <div className="mb-4">Chargement...</div>
+        <div className="mb-4">Vérification de l'authentification...</div>
         <div className="text-sm text-mps-primary">
           <button 
             onClick={() => window.location.reload()}
@@ -83,20 +96,30 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 const HomeRoute = () => {
   const { isAuthenticated, isLoading, sessionChecked } = useAuth();
   const location = useLocation();
-
+  const [showTimeout, setShowTimeout] = useState(false);
+  
   console.log("Home route check:", { isAuthenticated, isLoading, sessionChecked });
 
-  // If authentication is still loading and we're not yet sure if there's a session, show a loading state
-  // Add a timeout of 3 seconds to prevent infinite loading
-  const [showTimeout, setShowTimeout] = React.useState(false);
-  
+  // Add a timeout of 5 seconds to prevent infinite loading
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowTimeout(true);
-    }, 3000);
+    }, 5000);
     
     return () => clearTimeout(timer);
   }, []);
+  
+  // Ajouter un délai maximal pour la vérification d'auth (15 secondes)
+  useEffect(() => {
+    const maxAuthWait = setTimeout(() => {
+      if (isLoading || !sessionChecked) {
+        console.log("Auth check taking too long, forcing a refresh");
+        window.location.reload();
+      }
+    }, 15000);
+    
+    return () => clearTimeout(maxAuthWait);
+  }, [isLoading, sessionChecked]);
   
   if (isLoading && !sessionChecked) {
     return (
@@ -117,7 +140,7 @@ const HomeRoute = () => {
   }
 
   // If authenticated, redirect to dashboard
-  if (isAuthenticated) {
+  if (isAuthenticated && !isLoading && sessionChecked) {
     console.log("User authenticated, redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;
   }
@@ -139,6 +162,16 @@ const App = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Ajouter un gestionnaire pour nettoyer le cache de requêtes et réessayer les requêtes échouées
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      // Nettoyer les requêtes plus anciennes que 5 minutes pour éviter des problèmes de mémoire
+      queryClient.clear();
+    }, 300000); // 5 minutes
+    
+    return () => clearInterval(cleanupInterval);
   }, []);
 
   return (

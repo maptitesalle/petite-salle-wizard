@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,14 +14,24 @@ import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
 
 const Dashboard = () => {
   const { isAuthenticated, user, isLoading, sessionChecked } = useAuth();
-  const { userData, isLoading: dataLoading } = useUserData();
+  const { userData, isLoading: dataLoading, loadUserData } = useUserData();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   // Add state to track if we're showing a timeout message
-  const [showTimeout, setShowTimeout] = React.useState(false);
+  const [showTimeout, setShowTimeout] = useState(false);
+  const [showMaxTimeout, setShowMaxTimeout] = useState(false);
   
   useEffect(() => {
+    // Si l'authentification est vérifiée et que l'utilisateur est authentifié mais que userData est null,
+    // essayer de recharger les données utilisateur
+    if (sessionChecked && isAuthenticated && !isLoading && !userData && !dataLoading) {
+      console.log("Dashboard - Session checked, user authenticated, but userData is null. Reloading user data.");
+      loadUserData().catch(error => {
+        console.error("Error loading user data:", error);
+      });
+    }
+    
     // If we've checked the session and the user is not authenticated, redirect to login
     if (sessionChecked && !isAuthenticated && !isLoading) {
       navigate('/login');
@@ -32,15 +42,56 @@ const Dashboard = () => {
       setShowTimeout(true);
     }, 5000);
     
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, isLoading, navigate, sessionChecked]);
+    // Set a timer for a hard page reload after 20 seconds if still loading
+    const maxTimer = setTimeout(() => {
+      if ((isLoading || dataLoading) && !userData) {
+        setShowMaxTimeout(true);
+        console.log("Dashboard - Loading timeout exceeded, suggest page reload");
+      }
+    }, 20000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(maxTimer);
+    };
+  }, [isAuthenticated, isLoading, navigate, sessionChecked, userData, dataLoading, loadUserData]);
   
   const handleRefresh = () => {
     window.location.reload();
   };
   
+  // Si le chargement prend trop de temps (20 secondes), proposer une solution plus radicale
+  if (showMaxTimeout && (isLoading || dataLoading || !userData)) {
+    return (
+      <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-mps-primary mb-4">Problème de chargement détecté</h2>
+          <p className="mb-6">
+            Le chargement de vos données prend plus de temps que prévu. Cela peut être dû à un problème de connexion ou à une erreur temporaire.
+          </p>
+          <div className="space-y-4">
+            <Button 
+              variant="default" 
+              onClick={handleRefresh}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <RefreshCcw size={16} /> Rafraîchir la page
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/login')}
+              className="w-full"
+            >
+              Retourner à la page de connexion
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   // If still checking authentication or loading user data, show a loading state with a refresh button after timeout
-  if (isLoading || !sessionChecked) {
+  if (isLoading || !sessionChecked || dataLoading) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center">
         <div className="animate-pulse-subtle mb-6">
@@ -80,22 +131,6 @@ const Dashboard = () => {
       </div>
     </div>
   );
-  
-  if (dataLoading) {
-    return (
-      <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center justify-center p-8">
-            <div className="animate-pulse-subtle">
-              <div className="h-12 w-12 rounded-full bg-mps-primary/50 mb-4"></div>
-              <div className="h-6 w-48 bg-mps-primary/20 mb-2 rounded"></div>
-              <div className="h-4 w-64 bg-mps-primary/10 rounded"></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
   
   if (!userData) {
     return (

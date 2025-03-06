@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, RefreshCcw } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
 import StepTwo from '@/components/wizard/StepTwo';
 import StepThree from '@/components/wizard/StepThree';
@@ -19,15 +19,35 @@ const Wizard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { saveUserData, isLoading: dataLoading, userData, setUserData } = useUserData();
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, sessionChecked } = useAuth();
   
   const totalSteps = 5;
   const [isInitializing, setIsInitializing] = useState(true);
+  const [showRefreshButton, setShowRefreshButton] = useState(false);
+
+  // Afficher le bouton de rafraîchissement après 5 secondes si toujours en chargement
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if ((authLoading || dataLoading) && !userData) {
+        setShowRefreshButton(true);
+      }
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, [authLoading, dataLoading, userData]);
 
   // Initialize userData with default values if it's null
   useEffect(() => {
     console.log('Wizard page - userData check:', userData);
-    console.log('Wizard page - Auth check:', { isAuthenticated, authLoading, user });
+    console.log('Wizard page - Auth check:', { isAuthenticated, authLoading, user, sessionChecked });
+    
+    // Vérifier si nous sommes authentifiés mais que les données ne sont pas encore chargées
+    if (isAuthenticated && !userData && !dataLoading && sessionChecked) {
+      console.log('Wizard page - Session is checked, user is authenticated, but userData is null');
+      // Forcer le rechargement si l'authentification est terminée mais qu'il n'y a pas de données
+      window.location.reload();
+      return;
+    }
     
     // Set a small timeout to ensure auth context has been fully initialized
     const initTimer = setTimeout(() => {
@@ -69,7 +89,7 @@ const Wizard = () => {
     }, 1000); // Give auth context time to initialize
     
     return () => clearTimeout(initTimer);
-  }, [userData, dataLoading, setUserData, isAuthenticated, authLoading, user]);
+  }, [userData, dataLoading, setUserData, isAuthenticated, authLoading, user, sessionChecked]);
   
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -111,6 +131,10 @@ const Wizard = () => {
     }
   };
   
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+  
   const renderStep = () => {
     try {
       console.log('Wizard page - Rendering step:', currentStep);
@@ -145,13 +169,23 @@ const Wizard = () => {
     }
   };
   
-  // Show loading state while initializing
-  if (authLoading || dataLoading || isInitializing) {
+  // Show loading state with refresh button
+  if (authLoading || dataLoading || isInitializing || !userData) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center">
         <div className="text-center">
-          <div className="mb-4">Chargement...</div>
+          <div className="mb-4">Chargement des données...</div>
           <Progress value={100} className="w-48 h-2 bg-mps-secondary animate-pulse" />
+          
+          {showRefreshButton && (
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              className="mt-6 flex items-center gap-2"
+            >
+              <RefreshCcw size={16} /> Rafraîchir la page
+            </Button>
+          )}
         </div>
       </div>
     );
