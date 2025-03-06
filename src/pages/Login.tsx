@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
-import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -13,16 +13,16 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
+  const [redirectAttempted, setRedirectAttempted] = useState(false);
 
   // Debug log to check authentication state
   useEffect(() => {
-    console.log('Login page - Auth state:', { isAuthenticated, isLoading });
+    console.log('Login page - Auth state:', { isAuthenticated, isLoading, user });
     
     // Check the current session on component mount
     const checkSession = async () => {
@@ -31,27 +31,28 @@ const Login = () => {
     };
     
     checkSession();
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, user]);
 
   // Add an effect to handle redirects when authentication state changes
   useEffect(() => {
-    if (isAuthenticated && !isLoading && !isNavigating) {
+    if (isAuthenticated && !isLoading && !redirectAttempted && user) {
       // Get return URL from location state or default to dashboard
       const returnTo = location.state?.returnTo || '/dashboard';
       console.log('Login page - User is authenticated, navigating to:', returnTo);
-      setIsNavigating(true);
+      setRedirectAttempted(true);
       
-      // Add a small delay to ensure proper navigation
+      // Add a delay to ensure auth context is fully updated
       setTimeout(() => {
-        navigate(returnTo);
-      }, 300);
+        navigate(returnTo, { replace: true });
+      }, 500);
     }
-  }, [isAuthenticated, isLoading, navigate, location.state, isNavigating]);
+  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setIsSubmitting(true);
+    setRedirectAttempted(false);
     
     try {
       console.log('Login page - Attempting login with:', { email });
@@ -83,6 +84,18 @@ const Login = () => {
       setIsSubmitting(false);
     }
   };
+
+  // If user is already authenticated on initial render, redirect
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && user && !redirectAttempted) {
+      console.log('Login page - User already authenticated, redirecting to dashboard');
+      setRedirectAttempted(true);
+      
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 500);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
@@ -122,6 +135,7 @@ const Login = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-mps-primary hover:bg-mps-primary/80"
+                disabled={isSubmitting || isLoading}
               >
                 {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
               </Button>

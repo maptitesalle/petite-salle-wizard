@@ -5,24 +5,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserData } from '@/context/UserDataContext';
 
 const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const { register, isAuthenticated, isLoading } = useAuth();
+  const { register, isAuthenticated, isLoading, user } = useAuth();
+  const { userData, setUserData, loadUserData } = useUserData();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
+  const [redirectAttempted, setRedirectAttempted] = useState(false);
 
   // Debug log to check authentication state
   useEffect(() => {
-    console.log('Register page - Auth state:', { isAuthenticated, isLoading });
+    console.log('Register page - Auth state:', { isAuthenticated, isLoading, user, userData });
     
     // Check the current session on component mount
     const checkSession = async () => {
@@ -31,25 +33,35 @@ const Register = () => {
     };
     
     checkSession();
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, user, userData]);
 
   // Add an effect to handle redirects when authentication state changes
   useEffect(() => {
-    if (isAuthenticated && !isLoading && !isNavigating) {
+    if (isAuthenticated && !isLoading && !redirectAttempted && user) {
       console.log('Register page - User is authenticated, navigating to wizard');
-      setIsNavigating(true);
+      setRedirectAttempted(true);
       
-      // Add a longer delay to ensure auth context is fully updated
-      setTimeout(() => {
-        navigate('/wizard');
-      }, 1000);
+      // Make sure user data is loaded before redirecting
+      loadUserData().then(() => {
+        console.log('Register page - User data loaded, redirecting to wizard');
+        // Add a longer delay to ensure auth context and user data are fully updated
+        setTimeout(() => {
+          navigate('/wizard', { replace: true });
+        }, 1500);
+      }).catch(error => {
+        console.error('Register page - Error loading user data:', error);
+        setTimeout(() => {
+          navigate('/wizard', { replace: true });
+        }, 1500);
+      });
     }
-  }, [isAuthenticated, isLoading, navigate, isNavigating]);
+  }, [isAuthenticated, isLoading, navigate, redirectAttempted, user, loadUserData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setIsSubmitting(true);
+    setRedirectAttempted(false);
     
     // Basic validation
     if (password.length < 6) {
@@ -93,6 +105,18 @@ const Register = () => {
       setIsSubmitting(false);
     }
   };
+
+  // If user is already authenticated on initial render, redirect
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && user && !redirectAttempted) {
+      console.log('Register page - User already authenticated, redirecting to wizard');
+      setRedirectAttempted(true);
+      
+      setTimeout(() => {
+        navigate('/wizard', { replace: true });
+      }, 1000);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
@@ -145,7 +169,7 @@ const Register = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-mps-primary hover:bg-mps-primary/80"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoading}
               >
                 {isSubmitting ? 'Inscription en cours...' : 'S\'inscrire'}
               </Button>
