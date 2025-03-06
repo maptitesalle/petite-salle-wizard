@@ -40,60 +40,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
 
-  useEffect(() => {
-    // Get the current session
-    const getSession = async () => {
-      setIsLoading(true);
-      try {
-        console.log("AuthContext: Fetching initial session");
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error("AuthContext: Error fetching session", error);
-          throw error;
-        }
-
-        console.log("AuthContext: Session retrieved", session ? "Session exists" : "No session");
-        setSession(session);
-        
-        if (session?.user) {
-          console.log("AuthContext: User exists in session, fetching profile", session.user);
-          await fetchUserProfile(session.user);
-        } else {
-          console.log("AuthContext: No user in session, setting user to null");
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('AuthContext: Error fetching session:', error);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    getSession();
-
-    // Listen for auth changes
-    console.log("AuthContext: Setting up auth state change listener");
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("AuthContext: Auth state changed, event:", event, "session:", session ? "exists" : "null");
-      setSession(session);
-      
-      if (session?.user) {
-        console.log("AuthContext: User in session after state change, fetching profile", session.user);
-        await fetchUserProfile(session.user);
-      } else {
-        console.log("AuthContext: No user in session after state change");
-        setUser(null);
-      }
-    });
-
-    return () => {
-      console.log("AuthContext: Cleaning up auth state change listener");
-      subscription.unsubscribe();
-    };
-  }, []);
-
   // Fetch the user's profile from the profiles table
   const fetchUserProfile = async (authUser: User) => {
     try {
@@ -125,8 +71,66 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: authUser.email || '',
         name: authUser.email?.split('@')[0] || '',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Get the current session
+    const getSession = async () => {
+      setIsLoading(true);
+      try {
+        console.log("AuthContext: Fetching initial session");
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("AuthContext: Error fetching session", error);
+          throw error;
+        }
+
+        console.log("AuthContext: Session retrieved", session ? "Session exists" : "No session");
+        setSession(session);
+        
+        if (session?.user) {
+          console.log("AuthContext: User exists in session, fetching profile", session.user);
+          await fetchUserProfile(session.user);
+        } else {
+          console.log("AuthContext: No user in session, setting user to null");
+          setUser(null);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('AuthContext: Error fetching session:', error);
+        setUser(null);
+        setIsLoading(false);
+      }
+    };
+
+    getSession();
+
+    // Listen for auth changes
+    console.log("AuthContext: Setting up auth state change listener");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("AuthContext: Auth state changed, event:", event, "session:", session ? "exists" : "null");
+      setSession(session);
+      setIsLoading(true);
+      
+      if (session?.user) {
+        console.log("AuthContext: User in session after state change, fetching profile", session.user);
+        await fetchUserProfile(session.user);
+      } else {
+        console.log("AuthContext: No user in session after state change");
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      console.log("AuthContext: Cleaning up auth state change listener");
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -143,11 +147,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       console.log("AuthContext: Login successful, session:", data.session ? "Session exists" : "No session");
+      
+      // We don't need to manually set the user here as the auth state change listener will handle it
     } catch (error) {
       console.error('AuthContext: Login failed:', error);
-      throw error;
-    } finally {
       setIsLoading(false);
+      throw error;
     }
   };
 
@@ -164,6 +169,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('AuthContext: Logout failed:', error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -187,11 +194,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       console.log("AuthContext: Registration successful, session:", data.session ? "Session exists" : "No session");
+      
+      // We don't need to manually set the user here as the auth state change listener will handle it
     } catch (error) {
       console.error('AuthContext: Registration failed:', error);
-      throw error;
-    } finally {
       setIsLoading(false);
+      throw error;
     }
   };
 

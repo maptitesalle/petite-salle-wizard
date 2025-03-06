@@ -21,12 +21,12 @@ const Login = () => {
 
   // Debug log to check authentication state
   useEffect(() => {
-    console.log('Auth state:', { isAuthenticated, isLoading });
+    console.log('Login page - Auth state:', { isAuthenticated, isLoading });
     
     // Check the current session on component mount
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      console.log('Current session:', data.session);
+      console.log('Login page - Current session:', data.session);
     };
     
     checkSession();
@@ -38,9 +38,10 @@ const Login = () => {
     setIsSubmitting(true);
     
     try {
-      console.log('Attempting login with:', { email });
+      console.log('Login page - Attempting login with:', { email });
       await login(email, password);
       
+      console.log('Login page - Login successful, navigating...');
       toast({
         title: "Connexion réussie",
         description: "Bienvenue sur Ma P'tite Salle",
@@ -48,10 +49,14 @@ const Login = () => {
       
       // Get return URL from location state or default to dashboard
       const returnTo = location.state?.returnTo || '/dashboard';
-      console.log('Navigating to:', returnTo);
-      navigate(returnTo);
+      console.log('Login page - Navigating to:', returnTo);
+      
+      // Add a small timeout to ensure state updates before navigation
+      setTimeout(() => {
+        navigate(returnTo);
+      }, 300);
     } catch (error: any) {
-      console.error("Erreur de connexion:", error);
+      console.error("Login page - Erreur de connexion:", error);
       
       // More specific error message
       let errorMessage = "Email ou mot de passe incorrect";
@@ -72,8 +77,10 @@ const Login = () => {
     }
   };
 
+  // Only redirect if we are authenticated and not loading
   if (isAuthenticated && !isLoading) {
     const returnTo = location.state?.returnTo || '/dashboard';
+    console.log('Login page - User is authenticated, redirecting to:', returnTo);
     return <Navigate to={returnTo} />;
   }
 
@@ -115,7 +122,6 @@ const Login = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-mps-primary hover:bg-mps-primary/80"
-                disabled={isSubmitting}
               >
                 {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
               </Button>

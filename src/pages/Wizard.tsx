@@ -18,10 +18,49 @@ const Wizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { saveUserData, isLoading } = useUserData();
+  const { saveUserData, isLoading, userData, setUserData } = useUserData();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   
   const totalSteps = 5;
+
+  // Initialize userData if it's null to avoid errors
+  useEffect(() => {
+    console.log('Wizard page - userData check:', userData);
+    if (!userData && !isLoading) {
+      console.log('Wizard page - Initializing userData with default values');
+      setUserData({
+        personalInfo: { sex: '', age: 0 },
+        eGymData: {
+          force: { hautDuCorps: 0, milieuDuCorps: 0, basDuCorps: 0 },
+          flexibilite: { cou: 0, epaules: 0, lombaires: 0, ischios: 0, hanches: 0 },
+          metabolique: { poids: 0, masseGraisseuse: 0, masseMusculaire: 0, ageMetabolique: 0 },
+          cardio: { vo2max: 0, ageCardio: 0 }
+        },
+        objectives: {
+          priseDeMasse: false,
+          perteDePoids: false,
+          ameliorationSouplesse: false,
+          ameliorationCardio: false,
+          maintienForme: false
+        },
+        dietaryRestrictions: {
+          sansGluten: false,
+          vegan: false,
+          sansOeuf: false,
+          sansProduitLaitier: false
+        },
+        healthConditions: {
+          insuffisanceCardiaque: false,
+          arthrose: false,
+          problemesRespiratoires: false,
+          obesite: false,
+          hypothyroidie: false,
+          autresInfoSante: ''
+        },
+        lastUpdated: ''
+      });
+    }
+  }, [userData, isLoading, setUserData]);
 
   // Add debug logging for Wizard page
   useEffect(() => {
@@ -70,7 +109,18 @@ const Wizard = () => {
   
   const renderStep = () => {
     try {
-      console.log('Rendering step:', currentStep);
+      console.log('Wizard page - Rendering step:', currentStep);
+      
+      // Ensure userData is initialized before rendering steps
+      if (!userData) {
+        console.log('Wizard page - userData is null, showing loading state');
+        return (
+          <div className="flex justify-center items-center p-10">
+            <div>Chargement des données...</div>
+          </div>
+        );
+      }
+      
       switch (currentStep) {
         case 1:
           return <StepOne />;
@@ -86,13 +136,13 @@ const Wizard = () => {
           return <StepOne />;
       }
     } catch (error) {
-      console.error('Error rendering step:', error);
-      return <div>Erreur lors du chargement de cette étape.</div>;
+      console.error('Wizard page - Error rendering step:', error);
+      return <div>Erreur lors du chargement de cette étape. Veuillez réessayer.</div>;
     }
   };
   
   // Show loading state while auth is being determined
-  if (authLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center">
         <div className="text-center">
