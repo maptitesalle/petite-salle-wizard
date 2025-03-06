@@ -8,6 +8,12 @@ const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY'),
 });
 
+// Add CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 interface NutritionPlan {
   breakfast: {
     description: string;
@@ -59,6 +65,11 @@ const defaultNutritionPlan: NutritionPlan = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  
   try {
     console.log('Nutrition plan generator called');
     
@@ -73,7 +84,7 @@ serve(async (req) => {
           error: 'Données utilisateur manquantes',
           content: defaultNutritionPlan
         }),
-        { headers: { 'Content-Type': 'application/json' } },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
     
@@ -140,7 +151,10 @@ Le plan doit être adapté aux objectifs et restrictions alimentaires spécifiqu
     
     // Call OpenAI API with failsafe timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.log('OpenAI request timed out after 20 seconds');
+    }, 20000); // 20 seconds timeout
     
     try {
       const completion = await openai.chat.completions.create({
@@ -224,7 +238,7 @@ Le plan doit être adapté aux objectifs et restrictions alimentaires spécifiqu
       
       return new Response(
         JSON.stringify({ content: nutritionPlan }),
-        { headers: { 'Content-Type': 'application/json' } },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     } catch (error) {
       clearTimeout(timeoutId);
@@ -236,7 +250,7 @@ Le plan doit être adapté aux objectifs et restrictions alimentaires spécifiqu
           error: 'Erreur lors de la génération du plan nutritionnel',
           content: defaultNutritionPlan
         }),
-        { headers: { 'Content-Type': 'application/json' } },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
   } catch (error) {
@@ -248,7 +262,7 @@ Le plan doit être adapté aux objectifs et restrictions alimentaires spécifiqu
         error: 'Erreur inattendue lors de la génération du plan nutritionnel',
         content: defaultNutritionPlan
       }),
-      { headers: { 'Content-Type': 'application/json' } },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 })
