@@ -262,6 +262,12 @@ serve(async (req) => {
 function constructNutritionUserContext(userData) {
   let context = "\n\nContexte :\n"
   
+  // Ajouter les informations personnelles
+  if (userData.personalInfo) {
+    if (userData.personalInfo.sex) context += `Sexe : ${userData.personalInfo.sex}\n`;
+    if (userData.personalInfo.age) context += `Âge : ${userData.personalInfo.age} ans\n`;
+  }
+  
   // Ajouter les objectifs
   if (userData.objectives) {
     context += "Objectif principal : "
@@ -310,6 +316,12 @@ function constructNutritionUserContext(userData) {
 function constructSupplementsUserContext(userData) {
   let context = "\n\nContexte :\n"
   
+  // Ajouter les informations personnelles
+  if (userData.personalInfo) {
+    if (userData.personalInfo.sex) context += `Sexe : ${userData.personalInfo.sex}\n`;
+    if (userData.personalInfo.age) context += `Âge : ${userData.personalInfo.age} ans\n`;
+  }
+  
   // Ajouter les objectifs
   if (userData.objectives) {
     context += "Objectif principal : "
@@ -348,6 +360,12 @@ function constructSupplementsUserContext(userData) {
 
 function constructFlexibilityUserContext(userData) {
   let context = "\n\nContexte :\n"
+  
+  // Ajouter les informations personnelles
+  if (userData.personalInfo) {
+    if (userData.personalInfo.sex) context += `Sexe : ${userData.personalInfo.sex}\n`;
+    if (userData.personalInfo.age) context += `Âge : ${userData.personalInfo.age} ans\n`;
+  }
   
   // Ajouter les résultats de flexibilité
   if (userData.eGymData && userData.eGymData.flexibilite) {

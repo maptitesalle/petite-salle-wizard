@@ -1,12 +1,36 @@
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dumbbell, Activity, Scale, Heart } from 'lucide-react';
+import { Dumbbell, Activity, Scale, Heart, User } from 'lucide-react';
 import FlexibilityRating from './FlexibilityRating';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const StepOne: React.FC = () => {
   const { userData, setUserData } = useUserData();
-  const { eGymData } = userData;
+  const { eGymData, personalInfo } = userData;
+
+  const handlePersonalInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setUserData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        [name]: name === 'age' ? parseInt(value) || 0 : value
+      }
+    }));
+  };
+
+  const handleSexChange = (value: string) => {
+    setUserData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        sex: value
+      }
+    }));
+  };
 
   const handleForceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -65,6 +89,56 @@ const StepOne: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      <h2 className="text-2xl font-semibold text-mps-primary text-center">
+        Informations personnelles
+      </h2>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center space-x-3">
+            <User className="h-6 w-6 text-mps-primary" />
+            <CardTitle>Données personnelles</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="sex" className="block text-sm font-medium text-mps-text mb-2">
+              Sexe
+            </Label>
+            <RadioGroup 
+              id="sex" 
+              value={personalInfo.sex || ''} 
+              onValueChange={handleSexChange}
+              className="flex space-x-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="homme" id="homme" />
+                <Label htmlFor="homme">Homme</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="femme" id="femme" />
+                <Label htmlFor="femme">Femme</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          
+          <div>
+            <Label htmlFor="age" className="block text-sm font-medium text-mps-text mb-1">
+              Âge
+            </Label>
+            <Input
+              type="number"
+              id="age"
+              name="age"
+              value={personalInfo.age || ''}
+              onChange={handlePersonalInfoChange}
+              placeholder="Votre âge"
+              className="input-field"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <h2 className="text-2xl font-semibold text-mps-primary text-center">
         Données eGym
       </h2>
