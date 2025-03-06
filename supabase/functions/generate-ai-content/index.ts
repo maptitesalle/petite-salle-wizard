@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
@@ -352,16 +351,36 @@ function constructFlexibilityUserContext(userData) {
   // Ajouter les résultats de flexibilité
   if (userData.eGymData && userData.eGymData.flexibilite) {
     context += "Résultats eGym de flexibilité :\n"
-    if (userData.eGymData.flexibilite.cou !== undefined) 
-      context += `Cou : ${userData.eGymData.flexibilite.cou < 50 ? 'faible' : 'normal'}\n`
-    if (userData.eGymData.flexibilite.epaules !== undefined) 
-      context += `Épaules : ${userData.eGymData.flexibilite.epaules < 50 ? 'faible' : 'normal'}\n`
-    if (userData.eGymData.flexibilite.lombaires !== undefined) 
-      context += `Lombaires : ${userData.eGymData.flexibilite.lombaires < 50 ? 'faible' : 'normal'}\n`
-    if (userData.eGymData.flexibilite.ischios !== undefined) 
-      context += `Ischios : ${userData.eGymData.flexibilite.ischios < 50 ? 'faible' : 'normal'}\n`
-    if (userData.eGymData.flexibilite.hanches !== undefined) 
-      context += `Hanches : ${userData.eGymData.flexibilite.hanches < 50 ? 'faible' : 'normal'}\n`
+    if (userData.eGymData.flexibilite.cou !== undefined) {
+      let status = 'normal';
+      if (userData.eGymData.flexibilite.cou >= 75) status = 'excellent';
+      else if (userData.eGymData.flexibilite.cou < 50) status = 'faible';
+      context += `Cou : ${status}\n`
+    }
+    if (userData.eGymData.flexibilite.epaules !== undefined) {
+      let status = 'normal';
+      if (userData.eGymData.flexibilite.epaules >= 75) status = 'excellent';
+      else if (userData.eGymData.flexibilite.epaules < 50) status = 'faible';
+      context += `Épaules : ${status}\n`
+    }
+    if (userData.eGymData.flexibilite.lombaires !== undefined) {
+      let status = 'normal';
+      if (userData.eGymData.flexibilite.lombaires >= 75) status = 'excellent';
+      else if (userData.eGymData.flexibilite.lombaires < 50) status = 'faible';
+      context += `Lombaires : ${status}\n`
+    }
+    if (userData.eGymData.flexibilite.ischios !== undefined) {
+      let status = 'normal';
+      if (userData.eGymData.flexibilite.ischios >= 75) status = 'excellent';
+      else if (userData.eGymData.flexibilite.ischios < 50) status = 'faible';
+      context += `Ischios : ${status}\n`
+    }
+    if (userData.eGymData.flexibilite.hanches !== undefined) {
+      let status = 'normal';
+      if (userData.eGymData.flexibilite.hanches >= 75) status = 'excellent';
+      else if (userData.eGymData.flexibilite.hanches < 50) status = 'faible';
+      context += `Hanches : ${status}\n`
+    }
   }
   
   // Ajouter les pathologies

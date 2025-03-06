@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +23,12 @@ const Dashboard = () => {
     }
   }, [isAuthenticated, navigate]);
   
-  // Placeholder component for the section that isn't implemented yet
+  const getFlexibilityStatus = (value: number): string => {
+    if (value >= 75) return 'excellent';
+    if (value >= 50) return 'normal';
+    return 'faible';
+  };
+  
   const GymSection = () => (
     <div className="p-8 text-center">
       <Dumbbell className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />

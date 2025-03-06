@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dumbbell, Activity, Scale, Heart } from 'lucide-react';
+import FlexibilityRating from './FlexibilityRating';
 
 const StepOne: React.FC = () => {
   const { userData, setUserData } = useUserData();
@@ -22,15 +22,14 @@ const StepOne: React.FC = () => {
     }));
   };
 
-  const handleFlexibiliteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleFlexibiliteChange = (name: string, value: number) => {
     setUserData(prev => ({
       ...prev,
       eGymData: {
         ...prev.eGymData,
         flexibilite: {
           ...prev.eGymData.flexibilite,
-          [name]: parseFloat(value) || 0
+          [name]: value
         }
       }
     }));
@@ -135,72 +134,37 @@ const StepOne: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cou" className="block text-sm font-medium text-mps-text mb-1">
-                  Cou
-                </label>
-                <input
-                  type="number"
-                  id="cou"
-                  name="cou"
-                  value={eGymData.flexibilite.cou || ''}
-                  onChange={handleFlexibiliteChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label htmlFor="epaules" className="block text-sm font-medium text-mps-text mb-1">
-                  Épaules
-                </label>
-                <input
-                  type="number"
-                  id="epaules"
-                  name="epaules"
-                  value={eGymData.flexibilite.epaules || ''}
-                  onChange={handleFlexibiliteChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label htmlFor="lombaires" className="block text-sm font-medium text-mps-text mb-1">
-                  Lombaires
-                </label>
-                <input
-                  type="number"
-                  id="lombaires"
-                  name="lombaires"
-                  value={eGymData.flexibilite.lombaires || ''}
-                  onChange={handleFlexibiliteChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label htmlFor="ischios" className="block text-sm font-medium text-mps-text mb-1">
-                  Ischios
-                </label>
-                <input
-                  type="number"
-                  id="ischios"
-                  name="ischios"
-                  value={eGymData.flexibilite.ischios || ''}
-                  onChange={handleFlexibiliteChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label htmlFor="hanches" className="block text-sm font-medium text-mps-text mb-1">
-                  Hanches
-                </label>
-                <input
-                  type="number"
-                  id="hanches"
-                  name="hanches"
-                  value={eGymData.flexibilite.hanches || ''}
-                  onChange={handleFlexibiliteChange}
-                  className="input-field"
-                />
-              </div>
+            <div className="grid grid-cols-1 gap-4">
+              <FlexibilityRating 
+                name="cou"
+                label="Cou"
+                value={eGymData.flexibilite.cou}
+                onChange={(value) => handleFlexibiliteChange("cou", value)}
+              />
+              <FlexibilityRating 
+                name="epaules"
+                label="Épaules"
+                value={eGymData.flexibilite.epaules}
+                onChange={(value) => handleFlexibiliteChange("epaules", value)}
+              />
+              <FlexibilityRating 
+                name="lombaires"
+                label="Lombaires"
+                value={eGymData.flexibilite.lombaires}
+                onChange={(value) => handleFlexibiliteChange("lombaires", value)}
+              />
+              <FlexibilityRating 
+                name="ischios"
+                label="Ischios"
+                value={eGymData.flexibilite.ischios}
+                onChange={(value) => handleFlexibiliteChange("ischios", value)}
+              />
+              <FlexibilityRating 
+                name="hanches"
+                label="Hanches"
+                value={eGymData.flexibilite.hanches}
+                onChange={(value) => handleFlexibiliteChange("hanches", value)}
+              />
             </div>
           </CardContent>
         </Card>
