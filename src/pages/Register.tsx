@@ -104,7 +104,6 @@ const Register = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -116,7 +115,6 @@ const Register = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -128,14 +126,13 @@ const Register = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  disabled={isSubmitting}
                 />
                 <p className="text-xs text-gray-500">Le mot de passe doit contenir au moins 6 caractères</p>
               </div>
               <Button 
                 type="submit" 
-                className="w-full bg-mps-primary" 
-                disabled={isSubmitting || isLoading}
+                className="w-full bg-mps-primary hover:bg-mps-primary/80"
+                disabled={isSubmitting}
               >
                 {isSubmitting ? 'Inscription en cours...' : 'S\'inscrire'}
               </Button>

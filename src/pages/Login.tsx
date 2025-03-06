@@ -100,7 +100,6 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -111,13 +110,12 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  disabled={isSubmitting}
                 />
               </div>
               <Button 
                 type="submit" 
-                className="w-full bg-mps-primary" 
-                disabled={isSubmitting || isLoading}
+                className="w-full bg-mps-primary hover:bg-mps-primary/80"
+                disabled={isSubmitting}
               >
                 {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
               </Button>
