@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,15 +9,18 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
 const Register = () => {
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
-  const [name, setName] = React.useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const { register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
+    
     try {
       await register(email, password, name);
       toast({
@@ -25,11 +28,13 @@ const Register = () => {
         description: "Votre compte a été créé avec succès",
       });
       navigate('/wizard');
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Erreur d'inscription:", error);
+      setErrorMsg(error.message || "Impossible de créer votre compte");
       toast({
         variant: "destructive",
         title: "Erreur d'inscription",
-        description: "Impossible de créer votre compte",
+        description: error.message || "Impossible de créer votre compte",
       });
     }
   };
@@ -45,6 +50,11 @@ const Register = () => {
           <CardTitle className="text-2xl font-bold text-mps-primary">Inscription</CardTitle>
         </CardHeader>
         <CardContent>
+          {errorMsg && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {errorMsg}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -77,7 +87,9 @@ const Register = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={6}
                 />
+                <p className="text-xs text-gray-500">Le mot de passe doit contenir au moins 6 caractères</p>
               </div>
               <Button type="submit" className="w-full bg-mps-primary" disabled={isLoading}>
                 {isLoading ? 'Inscription en cours...' : 'S\'inscrire'}

@@ -1,19 +1,21 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Session, User, AuthError } from '@supabase/supabase-js';
 
 // Define the user type
-interface User {
+interface AuthUser {
   id: string;
   email: string;
   name: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
 }
 
@@ -34,68 +36,135 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    // Check for existing user session in localStorage
-    const checkUserSession = async () => {
+    // Get the current session
+    const getSession = async () => {
+      setIsLoading(true);
       try {
-        const storedUser = localStorage.getItem('mps_user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          throw error;
+        }
+
+        setSession(session);
+        
+        if (session?.user) {
+          await fetchUserProfile(session.user);
+        } else {
+          setUser(null);
         }
       } catch (error) {
-        console.error('Failed to restore user session:', error);
+        console.error('Error fetching session:', error);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkUserSession();
+    getSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      
+      if (session?.user) {
+        await fetchUserProfile(session.user);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Simulate login functionality - would connect to Netlify Identity in a real app
+  // Fetch the user's profile from the profiles table
+  const fetchUserProfile = async (authUser: User) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', authUser.id)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+
+      setUser({
+        id: authUser.id,
+        email: authUser.email || '',
+        name: data?.name || '',
+      });
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      
+      // Fallback to just the auth user data
+      setUser({
+        id: authUser.id,
+        email: authUser.email || '',
+        name: authUser.email?.split('@')[0] || '',
+      });
+    }
+  };
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // For now we'll just simulate a successful login with a mock user
-      const mockUser = {
-        id: '123456',
+      const { error } = await supabase.auth.signInWithPassword({
         email,
-        name: 'John Doe'
-      };
+        password,
+      });
       
-      setUser(mockUser);
-      localStorage.setItem('mps_user', JSON.stringify(mockUser));
+      if (error) {
+        throw error;
+      }
     } catch (error) {
       console.error('Login failed:', error);
-      throw new Error('Login failed. Please check your credentials and try again.');
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('mps_user');
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      setUser(null);
+    } catch (error) {
+      console.error('Logout failed:', error);
+      throw error;
+    }
   };
 
   const register = async (email: string, password: string, name: string) => {
     setIsLoading(true);
     try {
-      // For now we'll just simulate a successful registration with a mock user
-      const mockUser = {
-        id: '123456',
+      const { error } = await supabase.auth.signUp({
         email,
-        name
-      };
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
       
-      setUser(mockUser);
-      localStorage.setItem('mps_user', JSON.stringify(mockUser));
+      if (error) {
+        throw error;
+      }
     } catch (error) {
       console.error('Registration failed:', error);
-      throw new Error('Registration failed. Please try again later.');
+      throw error;
     } finally {
       setIsLoading(false);
     }
