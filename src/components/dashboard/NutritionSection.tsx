@@ -65,6 +65,7 @@ const NutritionSection: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const [retryCount, setRetryCount] = useState(0);
+  const [useFallbackPlan, setUseFallbackPlan] = useState(false);
 
   const generateNutritionPlan = async () => {
     setIsLoading(true);
@@ -78,10 +79,36 @@ const NutritionSection: React.FC = () => {
 
       console.log("Generating nutrition plan for user data:", userData);
       
-      // Call our Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('generate-nutrition-plan', {
+      if (useFallbackPlan) {
+        // Si on utilise explicitement le plan par défaut
+        console.log("Using default nutrition plan by user choice");
+        setNutritionPlan(defaultNutritionPlan);
+        toast({
+          title: "Plan par défaut utilisé",
+          description: "Un plan nutritionnel standard a été chargé",
+          variant: "default",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Définir un timeout pour la requête API
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Délai d'attente dépassé pour l'appel à l'API")), 12000);
+      });
+      
+      // Appel à notre fonction Supabase avec timeout
+      const apiCallPromise = supabase.functions.invoke('generate-nutrition-plan', {
         body: { userData },
       });
+      
+      // Course entre le timeout et l'appel API
+      const { data, error } = await Promise.race([
+        apiCallPromise,
+        timeoutPromise.then(() => {
+          throw new Error("Délai d'attente dépassé pour l'appel à l'API");
+        })
+      ]) as any;
 
       if (error) {
         console.error("Error calling nutrition plan function:", error);
@@ -141,6 +168,12 @@ const NutritionSection: React.FC = () => {
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
   };
+  
+  // Add handler to force using the fallback plan
+  const handleUseFallback = () => {
+    setUseFallbackPlan(true);
+    setRetryCount(prev => prev + 1);
+  };
 
   if (isLoading) {
     return (
@@ -161,10 +194,16 @@ const NutritionSection: React.FC = () => {
             <AlertTriangle className="h-12 w-12 text-mps-error mx-auto mb-4" />
             <h3 className="text-lg font-medium text-mps-error mb-2">Une erreur est survenue</h3>
             <p className="text-mps-text mb-4">{error}</p>
-            <Button onClick={handleRetry}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Réessayer
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={handleRetry} className="flex items-center justify-center">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Réessayer
+              </Button>
+              <Button onClick={handleUseFallback} variant="outline" className="flex items-center justify-center">
+                <Clock className="h-4 w-4 mr-2" />
+                Utiliser plan par défaut
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -332,11 +371,18 @@ const NutritionSection: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="flex justify-center mt-8">
-        <Button onClick={handleRetry}>
+      <div className="flex justify-center mt-8 gap-4">
+        <Button onClick={handleRetry} className="flex items-center">
           <RefreshCw className="h-4 w-4 mr-2" />
           Régénérer le plan
         </Button>
+        
+        {!useFallbackPlan && (
+          <Button onClick={handleUseFallback} variant="outline" className="flex items-center">
+            <Clock className="h-4 w-4 mr-2" />
+            Utiliser plan par défaut
+          </Button>
+        )}
       </div>
     </div>
   );
