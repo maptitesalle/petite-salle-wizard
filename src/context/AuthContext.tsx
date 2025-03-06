@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   // Fetch the user's profile from the profiles table
   const fetchUserProfile = async (authUser: User) => {
@@ -48,7 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .from('profiles')
         .select('name')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.error("AuthContext: Error fetching user profile:", error);
@@ -73,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
     } finally {
       setIsLoading(false);
+      setSessionChecked(true);
     }
   };
 
@@ -99,11 +101,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log("AuthContext: No user in session, setting user to null");
           setUser(null);
           setIsLoading(false);
+          setSessionChecked(true);
         }
       } catch (error) {
         console.error('AuthContext: Error fetching session:', error);
         setUser(null);
         setIsLoading(false);
+        setSessionChecked(true);
       }
     };
 
@@ -123,6 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log("AuthContext: No user in session after state change");
         setUser(null);
         setIsLoading(false);
+        setSessionChecked(true);
       }
     });
 
@@ -171,6 +176,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       throw error;
     } finally {
       setIsLoading(false);
+      setSessionChecked(true);
     }
   };
 
@@ -205,7 +211,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value = {
     user,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && sessionChecked,
     isLoading,
     login,
     logout,

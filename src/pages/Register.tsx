@@ -47,12 +47,12 @@ const Register = () => {
         // Add a longer delay to ensure auth context and user data are fully updated
         setTimeout(() => {
           navigate('/wizard', { replace: true });
-        }, 1500);
+        }, 2000);
       }).catch(error => {
         console.error('Register page - Error loading user data:', error);
         setTimeout(() => {
           navigate('/wizard', { replace: true });
-        }, 1500);
+        }, 2000);
       });
     }
   }, [isAuthenticated, isLoading, navigate, redirectAttempted, user, loadUserData]);
@@ -76,7 +76,7 @@ const Register = () => {
       
       toast({
         title: "Inscription réussie",
-        description: "Votre compte a été créé avec succès",
+        description: "Votre compte a été créé avec succès. Un email de confirmation a été envoyé.",
       });
       
       console.log('Register page - Registration successful');
@@ -87,7 +87,7 @@ const Register = () => {
       
       // More specific error message based on the error
       let errorMessage = "Impossible de créer votre compte";
-      if (error.message?.includes('email already in use')) {
+      if (error.message?.includes('email already in use') || error.message?.includes('email_exists')) {
         errorMessage = "Cette adresse email est déjà utilisée";
       } else if (error.message?.includes('invalid email')) {
         errorMessage = "Format d'email invalide";
@@ -114,7 +114,7 @@ const Register = () => {
       
       setTimeout(() => {
         navigate('/wizard', { replace: true });
-      }, 1000);
+      }, 2000);
     }
   }, []);
 

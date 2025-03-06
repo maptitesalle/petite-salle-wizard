@@ -35,7 +35,7 @@ const Login = () => {
 
   // Add an effect to handle redirects when authentication state changes
   useEffect(() => {
-    if (isAuthenticated && !isLoading && !redirectAttempted && user) {
+    if (isAuthenticated && !isLoading && !redirectAttempted) {
       // Get return URL from location state or default to dashboard
       const returnTo = location.state?.returnTo || '/dashboard';
       console.log('Login page - User is authenticated, navigating to:', returnTo);
@@ -44,9 +44,9 @@ const Login = () => {
       // Add a delay to ensure auth context is fully updated
       setTimeout(() => {
         navigate(returnTo, { replace: true });
-      }, 500);
+      }, 1500);
     }
-  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted, user]);
+  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +63,8 @@ const Login = () => {
         title: "Connexion réussie",
         description: "Bienvenue sur Ma P'tite Salle",
       });
+      
+      // We'll rely on the useEffect above for navigation after auth state updates
     } catch (error: any) {
       console.error("Login page - Erreur de connexion:", error);
       
@@ -87,13 +89,13 @@ const Login = () => {
 
   // If user is already authenticated on initial render, redirect
   useEffect(() => {
-    if (isAuthenticated && !isLoading && user && !redirectAttempted) {
+    if (isAuthenticated && !isLoading && !redirectAttempted) {
       console.log('Login page - User already authenticated, redirecting to dashboard');
       setRedirectAttempted(true);
       
       setTimeout(() => {
         navigate('/dashboard', { replace: true });
-      }, 500);
+      }, 1500);
     }
   }, []);
 

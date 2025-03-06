@@ -8,7 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { UserDataProvider } from "./context/UserDataContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import React from "react";
+import React, { useEffect } from "react";
 
 // Import pages
 import Login from "./pages/Login";
@@ -51,6 +51,28 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   return <>{children}</>;
 };
 
+// Home route component to check auth and redirect accordingly
+const HomeRoute = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  console.log("Home route check:", { isAuthenticated, isLoading });
+
+  // If authentication is still loading, show a loading state
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  }
+
+  // If authenticated, redirect to dashboard
+  if (isAuthenticated) {
+    console.log("User authenticated, redirecting to dashboard");
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If not authenticated, show the Index page
+  return <Index />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -60,7 +82,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={<HomeRoute />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route 
