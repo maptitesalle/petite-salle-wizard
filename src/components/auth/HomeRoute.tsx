@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const HomeRoute = () => {
-  const { isAuthenticated, isLoading, sessionChecked, refreshSession } = useAuth();
+  const { isAuthenticated, isLoading, sessionChecked, refreshSession, user } = useAuth();
   const { toast } = useToast();
   const [showTimeout, setShowTimeout] = useState(false);
   const [forceRedirect, setForceRedirect] = useState(false);
@@ -52,6 +52,19 @@ const HomeRoute = () => {
       return false;
     }
   }, [directSessionCheck.lastChecked]);
+  
+  // Afficher l'état actuel pour le débogage
+  useEffect(() => {
+    console.log("Home route check:", { 
+      isAuthenticated, 
+      isLoading, 
+      sessionChecked,
+      showTimeout,
+      forceRedirect,
+      recoveryAttempted,
+      user: user ? 'present' : 'absent'
+    });
+  }, [isAuthenticated, isLoading, sessionChecked, showTimeout, forceRedirect, recoveryAttempted, user]);
   
   // Session recovery with improved feedback
   const handleSessionRecovery = useCallback(async () => {
@@ -119,6 +132,12 @@ const HomeRoute = () => {
   // If we force the redirection after long timeout
   if (forceRedirect) {
     console.log("HomeRoute - Forcing index page render after timeout");
+    // Ajout d'un auto-refresh pour les cas où la session est coincée
+    if (!recoveryAttempted) {
+      console.log("Index - Auto-refreshing session after timeout");
+      console.log("Attempting to refresh session");
+      handleSessionRecovery();
+    }
     return <Index />;
   }
   
@@ -149,7 +168,7 @@ const HomeRoute = () => {
   }
 
   // Make decision based on authenticated state
-  if (isAuthenticated && !isLoading && sessionChecked) {
+  if (isAuthenticated && user) {
     console.log("HomeRoute - User authenticated, redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;
   }

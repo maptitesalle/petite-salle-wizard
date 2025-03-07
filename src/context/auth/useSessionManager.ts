@@ -67,15 +67,35 @@ export const useSessionManager = () => {
       }
       
       console.log("AuthContext: No existing session, attempting refresh");
-      // Try to refresh the session
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       
-      if (refreshError) {
-        console.error("AuthContext: Session refresh failed:", refreshError);
-        throw refreshError;
+      try {
+        // Try to refresh the session with error handling
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.error("AuthContext: Session refresh failed:", refreshError);
+          
+          // Si l'erreur est "Auth session missing", c'est normal, on a juste pas de session
+          if (refreshError.message?.includes('Auth session missing')) {
+            console.log("AuthContext: No session to refresh, this is expected behavior");
+            await processSession(null, setUser, setIsLoading, setSessionChecked);
+            return;
+          }
+          
+          throw refreshError;
+        }
+        
+        await processSession(refreshData.session, setUser, setIsLoading, setSessionChecked);
+      } catch (refreshErr) {
+        // Gérer cette erreur spécifique plus gracieusement
+        if (refreshErr.message?.includes('Auth session missing')) {
+          console.log("AuthContext: No session to refresh, this is expected behavior");
+          await processSession(null, setUser, setIsLoading, setSessionChecked);
+        } else {
+          throw refreshErr;
+        }
       }
       
-      await processSession(refreshData.session, setUser, setIsLoading, setSessionChecked);
     } catch (error) {
       console.error("AuthContext: Complete session refresh failure:", error);
       setSessionError(error as Error);

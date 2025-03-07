@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading, sessionChecked, refreshSession } = useAuth();
+  const { isAuthenticated, isLoading, sessionChecked, refreshSession, user } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
   const [showTimeout, setShowTimeout] = useState(false);
@@ -64,6 +64,17 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   useEffect(() => {
     verifySupabaseSession();
   }, [verifySupabaseSession]);
+
+  // Ajout d'un log pour déboguer l'état d'authentification 
+  useEffect(() => {
+    console.log("ProtectedRoute - Auth state:", {
+      isAuthenticated,
+      isLoading,
+      sessionChecked,
+      user: user ? 'present' : 'absent',
+      path: location.pathname
+    });
+  }, [isAuthenticated, isLoading, sessionChecked, user, location.pathname]);
 
   // Timeout handling
   useEffect(() => {
@@ -168,7 +179,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   // If not authenticated, redirect to login
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     console.log("ProtectedRoute - Not authenticated, redirecting to login");
     // Use a more reliable direct session check as fallback
     if (localSessionCheck.hasSession) {

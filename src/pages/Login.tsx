@@ -57,7 +57,8 @@ const Login = () => {
 
   // Add an effect to handle redirects when authentication state changes
   useEffect(() => {
-    if ((isAuthenticated || sessionChecked) && !isLoading && !redirectAttempted) {
+    // Only redirect if actually authenticated
+    if (isAuthenticated && !isLoading && !redirectAttempted && user) {
       // Get return URL from location state or default to dashboard
       const returnTo = location.state?.returnTo || '/dashboard';
       console.log('Login page - User is authenticated, navigating to:', returnTo);
@@ -66,9 +67,9 @@ const Login = () => {
       // Add a delay to ensure auth context is fully updated
       setTimeout(() => {
         navigate(returnTo, { replace: true });
-      }, 1000);
+      }, 500);
     }
-  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted, sessionChecked]);
+  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,9 +92,7 @@ const Login = () => {
       
       if (hasSession) {
         const returnTo = location.state?.returnTo || '/dashboard';
-        setTimeout(() => {
-          navigate(returnTo, { replace: true });
-        }, 1000);
+        navigate(returnTo, { replace: true });
       }
     } catch (error: any) {
       console.error("Login page - Erreur de connexion:", error);
