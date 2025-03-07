@@ -6,13 +6,22 @@ import { useSessionManager } from './auth/useSessionManager';
 import { useAuthOperations } from './auth/useAuthOperations';
 import { useToast } from '@/hooks/use-toast';
 
-// Create the context
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create the context with default values
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isAuthenticated: false,
+  isLoading: true,
+  sessionChecked: false,
+  login: async () => { throw new Error('Not implemented'); },
+  logout: async () => { throw new Error('Not implemented'); },
+  register: async () => { throw new Error('Not implemented'); },
+  refreshSession: async () => { throw new Error('Not implemented'); }
+});
 
 // Custom hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -112,6 +121,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await getCurrentSession(setUser);
       } catch (error) {
         console.error('Error in initial session fetch:', error);
+        // Even if there's an error, we should still mark initialization as complete
+        if (isMounted) {
+          setInitComplete(true);
+          setIsLoading(false);
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -127,7 +141,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log(`Auth state changed: ${event}`);
       if (isMounted) {
         try {
-          await processSession(session, setUser);
+          if (session) {
+            await processSession(session, setUser);
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+          }
         } catch (error) {
           console.error("Error processing auth state change:", error);
         }

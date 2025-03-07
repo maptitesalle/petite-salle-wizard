@@ -55,6 +55,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
         errorMessage = "Format d'email invalide";
       } else if (error.message?.includes('weak password')) {
         errorMessage = "Mot de passe trop faible. Utilisez au moins 6 caractères.";
+      } else if (error.message?.includes('security purposes') || error.message?.includes('rate limit')) {
+        errorMessage = "Veuillez patienter avant de faire une nouvelle tentative";
       }
       
       setErrorMsg(errorMessage);

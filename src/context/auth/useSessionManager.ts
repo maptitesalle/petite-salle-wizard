@@ -40,6 +40,7 @@ export const useSessionManager = () => {
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
         const timeoutId = setTimeout(() => {
+          console.error("Session check timed out");
           reject(new Error("Session check timed out"));
         }, 5000); // 5 second timeout
         return () => clearTimeout(timeoutId);
@@ -58,8 +59,15 @@ export const useSessionManager = () => {
         throw result.error;
       }
       
-      await processSession(result.data.session, setUser);
-      return result.data.session;
+      // If we have a session, process it
+      if (result.data && result.data.session) {
+        await processSession(result.data.session, setUser);
+        return result.data.session;
+      } else {
+        // No session found
+        setUser(null);
+        return null;
+      }
     } catch (error) {
       console.error("Error getting session:", error);
       setError(error as Error);
