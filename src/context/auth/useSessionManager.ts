@@ -29,7 +29,7 @@ export const useSessionManager = () => {
     }
   };
 
-  // Get current session without timeouts
+  // Get current session safely without timeouts
   const getCurrentSession = async (
     setUser: React.Dispatch<React.SetStateAction<AuthUser | null>>,
   ) => {
@@ -37,7 +37,6 @@ export const useSessionManager = () => {
     setError(null);
     
     try {
-      // Get session directly without timeout
       const { data, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {

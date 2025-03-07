@@ -68,9 +68,15 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
         return;
       }
 
+      console.log(`UserDataContext: Loading data for user ${user.id}`);
       const loadedData = await fetchUserData(user);
       if (loadedData) {
+        console.log("UserDataContext: Data loaded successfully", loadedData);
         setUserData(loadedData);
+        setLastLoadedUserId(user.id);
+      } else {
+        console.log("UserDataContext: No data found, using default");
+        setUserData(defaultUserData);
       }
     } catch (error) {
       console.error('UserDataContext: Error loading user data:', error);
@@ -81,10 +87,20 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
 
   // Save user data - wrapper around the hook
   const saveUserData = async (): Promise<void> => {
+    if (!user) {
+      console.error('UserDataContext: Cannot save data - no user');
+      throw new Error('User not authenticated');
+    }
+    
+    if (!userData) {
+      console.error('UserDataContext: Cannot save data - no userData');
+      throw new Error('No user data to save');
+    }
+    
     try {
+      console.log('UserDataContext: Saving data for user', user.id);
       await persistUserData(userData, user);
-      // Re-fetch the updated data to get the latest timestamp
-      await loadUserData();
+      console.log('UserDataContext: Data saved successfully');
     } catch (error) {
       console.error('UserDataContext: Error saving user data:', error);
       throw error;

@@ -10,10 +10,12 @@ export const useUserDataSaver = () => {
 
   const saveUserData = async (userData: UserData | null, user: AuthUser | null): Promise<void> => {
     if (!user) {
+      console.error("No user provided to saveUserData");
       throw new Error('You must be logged in to save data');
     }
 
     if (!userData) {
+      console.error("No userData provided to saveUserData");
       throw new Error('No user data to save');
     }
 
@@ -77,10 +79,10 @@ export const useUserDataSaver = () => {
       // Insert data into Supabase
       const { error: upsertError } = await supabase
         .from('user_data')
-        .upsert(dbData)
-        .select();
+        .upsert(dbData);
 
       if (upsertError) {
+        console.error("Upsert error:", upsertError);
         throw upsertError;
       }
       

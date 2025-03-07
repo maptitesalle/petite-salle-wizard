@@ -25,6 +25,7 @@ const Wizard = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [showRefreshButton, setShowRefreshButton] = useState(false);
   const [manualRefreshAttempted, setManualRefreshAttempted] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Show refresh button after 3 seconds if still loading
   useEffect(() => {
@@ -135,6 +136,7 @@ const Wizard = () => {
   };
   
   const handleSubmit = async () => {
+    setSubmitAttempted(true);
     if (!isAuthenticated) {
       toast({
         variant: "destructive",
@@ -146,12 +148,25 @@ const Wizard = () => {
     }
     
     try {
+      toast({
+        title: "Enregistrement en cours",
+        description: "Veuillez patienter pendant la sauvegarde de vos données",
+      });
+      
+      console.log("Submitting user data:", userData);
+      console.log("Current user:", user);
+      
       await saveUserData();
+      
       toast({
         title: "Données sauvegardées",
         description: "Vos informations ont été enregistrées avec succès dans la base de données",
       });
-      navigate('/dashboard');
+      
+      // Delay navigation to ensure toast is visible
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1000);
     } catch (error) {
       console.error("Erreur lors de la sauvegarde:", error);
       toast({
@@ -159,6 +174,7 @@ const Wizard = () => {
         title: "Erreur",
         description: "Impossible de sauvegarder vos données dans la base de données",
       });
+      setSubmitAttempted(false);
     }
   };
   
@@ -281,23 +297,27 @@ const Wizard = () => {
           <Button
             variant="outline"
             onClick={prevStep}
-            disabled={currentStep === 1}
+            disabled={currentStep === 1 || submitAttempted}
             className="border-mps-primary text-mps-primary hover:bg-mps-primary/10"
           >
             <ChevronLeft className="mr-2 h-4 w-4" /> Précédent
           </Button>
           
           {currentStep < totalSteps ? (
-            <Button onClick={nextStep} className="bg-mps-primary hover:bg-mps-primary/90">
+            <Button 
+              onClick={nextStep} 
+              disabled={submitAttempted}
+              className="bg-mps-primary hover:bg-mps-primary/90"
+            >
               Suivant <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
             <Button 
               onClick={handleSubmit} 
               className="bg-mps-success hover:bg-mps-success/90"
-              disabled={dataLoading}
+              disabled={dataLoading || submitAttempted}
             >
-              {dataLoading ? 'Sauvegarde...' : 'Sauvegarder'} <Save className="ml-2 h-4 w-4" />
+              {dataLoading || submitAttempted ? 'Sauvegarde...' : 'Sauvegarder'} <Save className="ml-2 h-4 w-4" />
             </Button>
           )}
         </div>
