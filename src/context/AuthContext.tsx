@@ -23,95 +23,121 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  // State
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [authStateChangeCount, setAuthStateChangeCount] = useState(0);
+  const [sessionCheckInProgress, setSessionCheckInProgress] = useState(false);
+  const [lastSessionCheck, setLastSessionCheck] = useState<number>(0);
 
-  // Custom hooks
   const { fetchUserProfile } = useProfileFetcher();
   const { processSession, refreshSession } = useSessionManager();
   const { login: authLogin, logout: authLogout, register: authRegister } = useAuthOperations();
 
-  // Wrap the refreshSession function to provide state setters
-  const handleRefreshSession = async () => {
-    await refreshSession(setUser, setIsLoading, setSessionChecked);
+  // Limiter la fréquence des vérifications de session
+  const shouldCheckSession = () => {
+    const now = Date.now();
+    const minInterval = 2000; // 2 secondes minimum entre les vérifications
+    return !sessionCheckInProgress && (now - lastSessionCheck > minInterval);
   };
 
-  // Login function
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
+  const handleRefreshSession = async () => {
+    if (!shouldCheckSession()) {
+      console.log('AuthContext: Skipping session refresh - too frequent or check in progress');
+      return;
+    }
+
+    setSessionCheckInProgress(true);
+    setLastSessionCheck(Date.now());
+
     try {
-      await authLogin(email, password);
-      // The auth state change listener will handle updating the user
-    } catch (error) {
-      setIsLoading(false);
-      throw error;
+      await refreshSession(setUser, setIsLoading, setSessionChecked);
+    } finally {
+      setSessionCheckInProgress(false);
     }
   };
 
-  // Logout function
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const result = await authLogin(email, password);
+      // Attendre explicitement la mise à jour de l'état d'authentification
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await authLogout();
       setUser(null);
-    } catch (error) {
-      throw error;
     } finally {
       setIsLoading(false);
       setSessionChecked(true);
     }
   };
 
-  // Register function
   const register = async (email: string, password: string, name: string) => {
     setIsLoading(true);
     try {
-      await authRegister(email, password, name);
-      // The auth state change listener will handle updating the user
-    } catch (error) {
+      return await authRegister(email, password, name);
+    } finally {
       setIsLoading(false);
-      throw error;
     }
   };
 
+  // Get initial session only once on mount
   useEffect(() => {
-    // Get the current session
-    const getSession = async () => {
-      setIsLoading(true);
+    const getInitialSession = async () => {
+      if (!shouldCheckSession()) return;
+      
+      setSessionCheckInProgress(true);
+      setLastSessionCheck(Date.now());
+      
       try {
         console.log("AuthContext: Fetching initial session");
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error("AuthContext: Error fetching session", error);
+          console.error("AuthContext: Error fetching initial session", error);
           throw error;
         }
 
-        console.log("AuthContext: Session retrieved", session ? "Session exists" : "No session");
         await processSession(session, setUser, setIsLoading, setSessionChecked);
       } catch (error) {
-        console.error('AuthContext: Error fetching session:', error);
+        console.error('AuthContext: Error in initial session fetch:', error);
         setUser(null);
+      } finally {
         setIsLoading(false);
         setSessionChecked(true);
+        setSessionCheckInProgress(false);
       }
     };
 
-    // Initialize by getting the current session
-    getSession();
+    getInitialSession();
+  }, []);
 
-    // Listen for auth changes
+  // Auth state change listener
+  useEffect(() => {
     console.log("AuthContext: Setting up auth state change listener");
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      // Increment the auth state change counter to track changes
-      setAuthStateChangeCount(prev => prev + 1);
+      console.log(`AuthContext: Auth state changed, event: ${event}`);
       
-      console.log(`AuthContext: Auth state changed (#${authStateChangeCount + 1}), event:`, event, "session:", newSession ? "exists" : "null");
+      if (!shouldCheckSession()) {
+        console.log('AuthContext: Skipping auth state change processing - too frequent');
+        return;
+      }
       
-      setIsLoading(true);
-      await processSession(newSession, setUser, setIsLoading, setSessionChecked);
+      setSessionCheckInProgress(true);
+      setLastSessionCheck(Date.now());
+      
+      try {
+        await processSession(newSession, setUser, setIsLoading, setSessionChecked);
+      } finally {
+        setSessionCheckInProgress(false);
+      }
     });
 
     return () => {
