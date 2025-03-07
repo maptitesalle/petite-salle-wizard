@@ -14,6 +14,7 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { toast } = useToast();
+  const [formSubmitting, setFormSubmitting] = useState(false);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,13 +28,18 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
       return;
     }
     
+    setFormSubmitting(true);
     try {
       await onLogin(email, password);
     } catch (error) {
       // Error handling is done in the parent component
       console.error('Login form error:', error);
+    } finally {
+      setFormSubmitting(false);
     }
   };
+
+  const disabled = isLoading || formSubmitting;
 
   return (
     <form onSubmit={handleSubmit}>
@@ -47,7 +53,7 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            disabled={isLoading}
+            disabled={disabled}
           />
         </div>
         <div className="space-y-2">
@@ -58,15 +64,15 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            disabled={isLoading}
+            disabled={disabled}
           />
         </div>
         <Button 
           type="submit" 
           className="w-full bg-mps-primary hover:bg-mps-primary/80"
-          disabled={isLoading}
+          disabled={disabled}
         >
-          {isLoading ? 'Connexion en cours...' : 'Se connecter'}
+          {disabled ? 'Connexion en cours...' : 'Se connecter'}
         </Button>
       </div>
     </form>

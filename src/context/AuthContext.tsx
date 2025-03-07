@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType>({
 // Custom hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -112,6 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Initialize auth state
   useEffect(() => {
     let isMounted = true;
+    console.log("AuthContext: Getting current session");
     
     const initAuth = async () => {
       if (!isMounted) return;
@@ -121,11 +122,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await getCurrentSession(setUser);
       } catch (error) {
         console.error('Error in initial session fetch:', error);
-        // Even if there's an error, we should still mark initialization as complete
-        if (isMounted) {
-          setInitComplete(true);
-          setIsLoading(false);
-        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -137,13 +133,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
     
     // Set up auth state change listener
+    console.log("AuthContext: Setting up auth state change listener");
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`Auth state changed: ${event}`);
+      console.log(`AuthContext: Auth state changed, event: ${event}`);
       if (isMounted) {
         try {
           if (session) {
+            console.log("AuthContext: Processing valid session for user:", session.user.id);
             await processSession(session, setUser);
           } else if (event === 'SIGNED_OUT') {
+            console.log("AuthContext: User signed out, clearing user data");
             setUser(null);
           }
         } catch (error) {

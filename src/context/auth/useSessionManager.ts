@@ -29,7 +29,7 @@ export const useSessionManager = () => {
     }
   };
 
-  // Get current session with timeout protection
+  // Get current session with safer timeout handling
   const getCurrentSession = async (
     setUser: React.Dispatch<React.SetStateAction<AuthUser | null>>,
   ) => {
@@ -38,35 +38,42 @@ export const useSessionManager = () => {
     
     try {
       // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        const timeoutId = setTimeout(() => {
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
           console.error("Session check timed out");
           reject(new Error("Session check timed out"));
         }, 5000); // 5 second timeout
-        return () => clearTimeout(timeoutId);
       });
       
       // Attempt to get the session
       const sessionPromise = supabase.auth.getSession();
       
       // Race them
-      const result = await Promise.race([
-        sessionPromise,
-        timeoutPromise
-      ]) as { data: any, error: any };
-      
-      if (result.error) {
-        throw result.error;
-      }
-      
-      // If we have a session, process it
-      if (result.data && result.data.session) {
-        await processSession(result.data.session, setUser);
-        return result.data.session;
-      } else {
-        // No session found
-        setUser(null);
-        return null;
+      try {
+        const result = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as { data: any, error: any };
+        
+        clearTimeout(timeoutId);
+        
+        if (result.error) {
+          throw result.error;
+        }
+        
+        // If we have a session, process it
+        if (result.data && result.data.session) {
+          await processSession(result.data.session, setUser);
+          return result.data.session;
+        } else {
+          // No session found
+          setUser(null);
+          return null;
+        }
+      } catch (raceError) {
+        clearTimeout(timeoutId);
+        throw raceError;
       }
     } catch (error) {
       console.error("Error getting session:", error);
@@ -78,10 +85,23 @@ export const useSessionManager = () => {
     }
   };
 
+  // Simple direct session check without user profile fetching
+  const checkSessionOnly = async () => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return data.session;
+    } catch (error) {
+      console.error("Direct session check error:", error);
+      return null;
+    }
+  };
+
   return {
     isLoading,
     error,
     getCurrentSession,
-    processSession
+    processSession,
+    checkSessionOnly
   };
 };

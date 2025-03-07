@@ -13,7 +13,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
   
   // Redirect if already logged in
   useEffect(() => {
@@ -28,8 +28,7 @@ const Login = () => {
     setErrorMessage(null);
     
     try {
-      // Use the auth context to log in
-      const { login } = useAuth();
+      // Use the auth context login function
       await login(email, password);
       
       // If we get here, login was successful
