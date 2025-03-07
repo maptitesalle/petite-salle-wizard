@@ -18,78 +18,109 @@ const Wizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { saveUserData, isLoading: dataLoading, userData, setUserData } = useUserData();
-  const { isAuthenticated, isLoading: authLoading, user, sessionChecked } = useAuth();
+  const { saveUserData, isLoading: dataLoading, userData, setUserData, loadUserData } = useUserData();
+  const { isAuthenticated, isLoading: authLoading, user, sessionChecked, refreshSession } = useAuth();
   
   const totalSteps = 5;
   const [isInitializing, setIsInitializing] = useState(true);
   const [showRefreshButton, setShowRefreshButton] = useState(false);
+  const [manualRefreshAttempted, setManualRefreshAttempted] = useState(false);
 
-  // Afficher le bouton de rafraîchissement après 5 secondes si toujours en chargement
+  // Show refresh button after 3 seconds if still loading
   useEffect(() => {
     const timer = setTimeout(() => {
       if ((authLoading || dataLoading) && !userData) {
         setShowRefreshButton(true);
       }
-    }, 5000);
+    }, 3000);
     
     return () => clearTimeout(timer);
   }, [authLoading, dataLoading, userData]);
 
-  // Initialize userData with default values if it's null
+  // Auto-refresh session after 5 seconds if still loading
   useEffect(() => {
-    console.log('Wizard page - userData check:', userData);
+    const timer = setTimeout(() => {
+      if ((authLoading || dataLoading || !userData) && !manualRefreshAttempted && sessionChecked && isAuthenticated) {
+        console.log("Wizard - Auto-refreshing user data after timeout");
+        handleLoadUserData();
+      }
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, [authLoading, dataLoading, userData, manualRefreshAttempted, sessionChecked, isAuthenticated]);
+
+  // Initialize userData when page loads
+  useEffect(() => {
+    console.log('Wizard page - Initial userData check:', userData);
     console.log('Wizard page - Auth check:', { isAuthenticated, authLoading, user, sessionChecked });
     
-    // Vérifier si nous sommes authentifiés mais que les données ne sont pas encore chargées
-    if (isAuthenticated && !userData && !dataLoading && sessionChecked) {
-      console.log('Wizard page - Session is checked, user is authenticated, but userData is null');
-      // Forcer le rechargement si l'authentification est terminée mais qu'il n'y a pas de données
-      window.location.reload();
+    // Don't do anything until auth state is determined
+    if (authLoading || !sessionChecked) {
       return;
     }
     
-    // Set a small timeout to ensure auth context has been fully initialized
-    const initTimer = setTimeout(() => {
-      if (!userData && !dataLoading) {
-        console.log('Wizard page - Initializing userData with default values');
-        setUserData({
-          personalInfo: { sex: '', age: 0 },
-          eGymData: {
-            force: { hautDuCorps: 0, milieuDuCorps: 0, basDuCorps: 0 },
-            flexibilite: { cou: 0, epaules: 0, lombaires: 0, ischios: 0, hanches: 0 },
-            metabolique: { poids: 0, masseGraisseuse: 0, masseMusculaire: 0, ageMetabolique: 0 },
-            cardio: { vo2max: 0, ageCardio: 0 }
-          },
-          objectives: {
-            priseDeMasse: false,
-            perteDePoids: false,
-            ameliorationSouplesse: false,
-            ameliorationCardio: false,
-            maintienForme: false
-          },
-          dietaryRestrictions: {
-            sansGluten: false,
-            vegan: false,
-            sansOeuf: false,
-            sansProduitLaitier: false
-          },
-          healthConditions: {
-            insuffisanceCardiaque: false,
-            arthrose: false,
-            problemesRespiratoires: false,
-            obesite: false,
-            hypothyroidie: false,
-            autresInfoSante: ''
-          },
-          lastUpdated: ''
-        });
-      }
-      setIsInitializing(false);
-    }, 1000); // Give auth context time to initialize
+    // If authenticated but no userData, try to load data
+    if (isAuthenticated && user && !userData && !dataLoading) {
+      console.log('Wizard page - User authenticated, loading user data');
+      handleLoadUserData();
+    } 
+    // If we can't load data, initialize with default
+    else if (!authLoading && (!userData || Object.keys(userData).length === 0) && !dataLoading) {
+      console.log('Wizard page - Initializing userData with default values');
+      initializeDefaultData();
+    }
     
-    return () => clearTimeout(initTimer);
-  }, [userData, dataLoading, setUserData, isAuthenticated, authLoading, user, sessionChecked]);
+    // Mark initialization as complete
+    setIsInitializing(false);
+  }, [userData, dataLoading, authLoading, sessionChecked, isAuthenticated, user]);
+
+  const handleLoadUserData = async () => {
+    setManualRefreshAttempted(true);
+    try {
+      console.log('Wizard - Manually loading user data');
+      await loadUserData();
+      setIsInitializing(false);
+    } catch (err) {
+      console.error('Wizard - Error loading user data:', err);
+      initializeDefaultData();
+    }
+  };
+  
+  const initializeDefaultData = () => {
+    console.log('Wizard - Initializing with default data');
+    setUserData({
+      personalInfo: { sex: '', age: 0 },
+      eGymData: {
+        force: { hautDuCorps: 0, milieuDuCorps: 0, basDuCorps: 0 },
+        flexibilite: { cou: 0, epaules: 0, lombaires: 0, ischios: 0, hanches: 0 },
+        metabolique: { poids: 0, masseGraisseuse: 0, masseMusculaire: 0, ageMetabolique: 0 },
+        cardio: { vo2max: 0, ageCardio: 0 }
+      },
+      objectives: {
+        priseDeMasse: false,
+        perteDePoids: false,
+        ameliorationSouplesse: false,
+        ameliorationCardio: false,
+        maintienForme: false
+      },
+      dietaryRestrictions: {
+        sansGluten: false,
+        vegan: false,
+        sansOeuf: false,
+        sansProduitLaitier: false
+      },
+      healthConditions: {
+        insuffisanceCardiaque: false,
+        arthrose: false,
+        problemesRespiratoires: false,
+        obesite: false,
+        hypothyroidie: false,
+        autresInfoSante: ''
+      },
+      lastUpdated: ''
+    });
+    setIsInitializing(false);
+  };
   
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -135,6 +166,32 @@ const Wizard = () => {
     window.location.reload();
   };
   
+  const handleSessionRefresh = async () => {
+    setManualRefreshAttempted(true);
+    try {
+      console.log("Wizard - Manually refreshing session");
+      toast({
+        title: "Rafraîchissement",
+        description: "Tentative de rafraîchissement de votre session...",
+      });
+      
+      await refreshSession();
+      await handleLoadUserData();
+      
+      toast({
+        title: "Session rafraîchie",
+        description: "Session restaurée avec succès",
+      });
+    } catch (error) {
+      console.error("Wizard - Failed to refresh session:", error);
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de restaurer votre session",
+      });
+    }
+  };
+  
   const renderStep = () => {
     try {
       console.log('Wizard page - Rendering step:', currentStep);
@@ -178,13 +235,23 @@ const Wizard = () => {
           <Progress value={100} className="w-48 h-2 bg-mps-secondary animate-pulse" />
           
           {showRefreshButton && (
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              className="mt-6 flex items-center gap-2"
-            >
-              <RefreshCcw size={16} /> Rafraîchir la page
-            </Button>
+            <div className="flex flex-col gap-2 mt-6">
+              <Button 
+                variant="default" 
+                onClick={handleSessionRefresh}
+                className="flex items-center justify-center gap-2"
+                disabled={manualRefreshAttempted}
+              >
+                <RefreshCcw size={16} /> Restaurer la session
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                className="flex items-center justify-center gap-2"
+              >
+                <RefreshCcw size={16} /> Rafraîchir la page
+              </Button>
+            </div>
           )}
         </div>
       </div>

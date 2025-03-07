@@ -146,17 +146,24 @@ interface UserDataProviderProps {
 }
 
 export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, sessionChecked } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
 
   // Load user data function
-  const loadUserData = async () => {
+  const loadUserData = async (): Promise<void> => {
     if (!user) {
       console.log('UserDataContext: No user found, initializing with default data');
       setUserData(defaultUserData);
+      return;
+    }
+
+    // Don't reload if we've already loaded for this user
+    if (lastLoadedUserId === user.id && userData) {
+      console.log(`UserDataContext: Already loaded data for user ${user.id}, skipping`);
       return;
     }
 
@@ -235,6 +242,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
         };
         
         setUserData(formattedData);
+        setLastLoadedUserId(user.id);
       } else {
         console.log('UserDataContext: No user data found, initializing with default data');
         // Initialize with default data if no data found
@@ -251,26 +259,41 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     }
   };
 
-  // Load user data when the user changes
+  // Load user data when auth state is fully ready
   useEffect(() => {
-    console.log('UserDataContext: Auth state changed', { user, isAuthenticated });
+    console.log('UserDataContext: Auth state changed', { 
+      user, 
+      isAuthenticated, 
+      authLoading, 
+      sessionChecked,
+      lastLoadedUserId 
+    });
     
-    // Small delay to ensure auth context is fully updated
-    const timer = setTimeout(() => {
-      loadUserData();
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [user, isAuthenticated]);
+    // Only proceed when auth is fully loaded and user is authenticated
+    if (!authLoading && sessionChecked && isAuthenticated && user) {
+      // Check if we need to load data for this user
+      if (lastLoadedUserId !== user.id) {
+        console.log(`UserDataContext: Loading data for user ${user.id}`);
+        loadUserData().catch(err => {
+          console.error('UserDataContext: Error in auto-load:', err);
+        });
+      }
+    } else if (!authLoading && sessionChecked && !isAuthenticated) {
+      // If user is not authenticated and auth is done loading, reset user data
+      console.log('UserDataContext: User not authenticated, resetting data');
+      setUserData(null);
+      setLastLoadedUserId(null);
+    }
+  }, [user, isAuthenticated, authLoading, sessionChecked]);
 
   // Initialize with default data if not loading and not initialized
   useEffect(() => {
-    if (!isLoading && !initialized && userData === null) {
+    if (!isLoading && !initialized && userData === null && !authLoading) {
       console.log('UserDataContext: Initializing with default data (fallback)');
       setUserData(defaultUserData);
       setInitialized(true);
     }
-  }, [isLoading, initialized, userData]);
+  }, [isLoading, initialized, userData, authLoading]);
 
   // Save user data
   const saveUserData = async () => {
@@ -350,7 +373,9 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       }
       
       console.log('UserDataContext: User data saved successfully');
-      // Fetch the updated data to get the latest timestamp
+      setLastLoadedUserId(user.id);
+      
+      // Re-fetch the updated data to get the latest timestamp
       await loadUserData();
       
     } catch (error) {

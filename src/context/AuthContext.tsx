@@ -38,14 +38,16 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // State
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [sessionError, setSessionError] = useState<Error | null>(null);
+  const [authStateChangeCount, setAuthStateChangeCount] = useState(0);
 
   // Fetch the user's profile from the profiles table
-  const fetchUserProfile = async (authUser: User) => {
+  const fetchUserProfile = async (authUser: User): Promise<AuthUser> => {
     try {
       console.log("AuthContext: Fetching user profile for id:", authUser.id);
       const { data, error } = await supabase
@@ -60,22 +62,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       console.log("AuthContext: Profile data retrieved:", data);
-      setUser({
+      return {
         id: authUser.id,
         email: authUser.email || '',
         name: data?.name || '',
-      });
+      };
     } catch (error) {
       console.error('AuthContext: Error fetching user profile:', error);
       
       // Fallback to just the auth user data
       console.log("AuthContext: Using fallback user data");
-      setUser({
+      return {
         id: authUser.id,
         email: authUser.email || '',
         name: authUser.email?.split('@')[0] || '',
-      });
-    } finally {
+      };
+    }
+  };
+
+  // Process session data and update state
+  const processSession = async (newSession: Session | null) => {
+    setSession(newSession);
+    
+    if (newSession?.user) {
+      try {
+        const userData = await fetchUserProfile(newSession.user);
+        setUser(userData);
+        setIsLoading(false);
+        setSessionChecked(true);
+      } catch (error) {
+        console.error("AuthContext: Error processing session user:", error);
+        setUser(null);
+        setIsLoading(false);
+        setSessionChecked(true);
+      }
+    } else {
+      setUser(null);
       setIsLoading(false);
       setSessionChecked(true);
     }
@@ -97,24 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw refreshError;
       }
       
-      if (refreshData.session) {
-        console.log("AuthContext: Session refreshed successfully");
-        setSession(refreshData.session);
-        
-        if (refreshData.session.user) {
-          await fetchUserProfile(refreshData.session.user);
-        } else {
-          setUser(null);
-          setIsLoading(false);
-          setSessionChecked(true);
-        }
-      } else {
-        console.log("AuthContext: No session after refresh, treating as logged out");
-        setUser(null);
-        setSession(null);
-        setIsLoading(false);
-        setSessionChecked(true);
-      }
+      await processSession(refreshData.session);
     } catch (error) {
       console.error("AuthContext: Error refreshing session:", error);
       // If refresh fails, try to get fresh session
@@ -123,24 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (sessionError) throw sessionError;
         
-        if (sessionData.session) {
-          console.log("AuthContext: Retrieved fresh session");
-          setSession(sessionData.session);
-          
-          if (sessionData.session.user) {
-            await fetchUserProfile(sessionData.session.user);
-          } else {
-            setUser(null);
-            setIsLoading(false);
-            setSessionChecked(true);
-          }
-        } else {
-          console.log("AuthContext: No valid session found");
-          setUser(null);
-          setSession(null);
-          setIsLoading(false);
-          setSessionChecked(true);
-        }
+        await processSession(sessionData.session);
       } catch (finalError) {
         console.error("AuthContext: Complete session refresh failure:", finalError);
         setSessionError(finalError as Error);
@@ -166,17 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         console.log("AuthContext: Session retrieved", session ? "Session exists" : "No session");
-        setSession(session);
-        
-        if (session?.user) {
-          console.log("AuthContext: User exists in session, fetching profile", session.user);
-          await fetchUserProfile(session.user);
-        } else {
-          console.log("AuthContext: No user in session, setting user to null");
-          setUser(null);
-          setIsLoading(false);
-          setSessionChecked(true);
-        }
+        await processSession(session);
       } catch (error) {
         console.error('AuthContext: Error fetching session:', error);
         setUser(null);
@@ -185,24 +163,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
+    // Initialize by getting the current session
     getSession();
 
     // Listen for auth changes
     console.log("AuthContext: Setting up auth state change listener");
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("AuthContext: Auth state changed, event:", event, "session:", session ? "exists" : "null");
-      setSession(session);
-      setIsLoading(true);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      // Increment the auth state change counter to track changes
+      setAuthStateChangeCount(prev => prev + 1);
       
-      if (session?.user) {
-        console.log("AuthContext: User in session after state change, fetching profile", session.user);
-        await fetchUserProfile(session.user);
-      } else {
-        console.log("AuthContext: No user in session after state change");
-        setUser(null);
-        setIsLoading(false);
-        setSessionChecked(true);
-      }
+      console.log(`AuthContext: Auth state changed (#${authStateChangeCount + 1}), event:`, event, "session:", newSession ? "exists" : "null");
+      
+      setIsLoading(true);
+      await processSession(newSession);
     });
 
     return () => {

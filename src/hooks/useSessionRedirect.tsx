@@ -5,54 +5,57 @@ import { useAuth } from '@/context/AuthContext';
 import { useUserData } from '@/context/UserDataContext';
 import { supabase } from '@/integrations/supabase/client';
 
-export function useSessionRedirect(redirectPath: string, delay: number = 2000) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+export function useSessionRedirect(redirectPath: string, delay: number = 1000) {
+  const { isAuthenticated, isLoading, user, sessionChecked } = useAuth();
   const { loadUserData } = useUserData();
   const navigate = useNavigate();
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+  const [sessionVerified, setSessionVerified] = useState(false);
 
-  // Check the current session on component mount
+  // Check the current session once on component mount
   useEffect(() => {
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      console.log('Session check - Current session:', data.session);
+      try {
+        const { data } = await supabase.auth.getSession();
+        console.log('Session check - Current session:', data.session ? 'Active' : 'None');
+        setSessionVerified(true);
+      } catch (error) {
+        console.error('Session check - Error:', error);
+        setSessionVerified(true); // Still mark as verified so we don't get stuck
+      }
     };
     
     checkSession();
   }, []);
 
-  // Handle redirect when authentication state changes
+  // Handle redirect when authentication state changes and is confirmed
   useEffect(() => {
-    if (isAuthenticated && !isLoading && !redirectAttempted && user) {
-      console.log(`Session redirect - User is authenticated, navigating to ${redirectPath}`);
+    if (!sessionVerified) return; // Wait until initial session check completes
+    
+    if (isAuthenticated && !isLoading && sessionChecked && !redirectAttempted && user) {
+      console.log(`Session redirect - User is authenticated (${user.id}), navigating to ${redirectPath}`);
       setRedirectAttempted(true);
       
-      // Always navigate to specified path after authentication
-      loadUserData().then(() => {
-        console.log(`Session redirect - User data loaded, redirecting to ${redirectPath}`);
-        setTimeout(() => {
-          navigate(redirectPath, { replace: true });
-        }, delay);
-      }).catch(error => {
-        console.error('Session redirect - Error loading user data:', error);
-        setTimeout(() => {
-          navigate(redirectPath, { replace: true });
-        }, delay);
-      });
+      // Load user data before redirecting
+      loadUserData()
+        .then(() => {
+          console.log(`Session redirect - User data loaded, redirecting to ${redirectPath}`);
+          const redirectTimer = setTimeout(() => {
+            navigate(redirectPath, { replace: true });
+          }, delay);
+          
+          return () => clearTimeout(redirectTimer);
+        })
+        .catch(error => {
+          console.error('Session redirect - Error loading user data:', error);
+          const redirectTimer = setTimeout(() => {
+            navigate(redirectPath, { replace: true });
+          }, delay);
+          
+          return () => clearTimeout(redirectTimer);
+        });
     }
-  }, [isAuthenticated, isLoading, navigate, redirectAttempted, user, loadUserData, redirectPath, delay]);
-
-  // Check if user is already authenticated on initial render
-  useEffect(() => {
-    if (isAuthenticated && !isLoading && user && !redirectAttempted) {
-      console.log(`Session redirect - User already authenticated, redirecting to ${redirectPath}`);
-      setRedirectAttempted(true);
-      
-      setTimeout(() => {
-        navigate(redirectPath, { replace: true });
-      }, delay);
-    }
-  }, []);
+  }, [isAuthenticated, isLoading, sessionChecked, navigate, redirectAttempted, user, loadUserData, redirectPath, delay, sessionVerified]);
 
   return { redirectAttempted, setRedirectAttempted };
 }
