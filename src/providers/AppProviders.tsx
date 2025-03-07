@@ -20,18 +20,25 @@ const AppProviders = ({ children }: AppProvidersProps) => {
   useEffect(() => {
     const handleError = (error: Error) => {
       console.error("Global error caught:", error);
-      // Optionally reset query cache on critical errors
-      if (error.message.includes("network") || error.message.includes("timeout")) {
-        queryClient.clear();
+      
+      // Ne pas systématiquement vider le cache pour éviter des rechargements inutiles
+      if (error.message.includes("Failed to fetch") || 
+          error.message.includes("Network Error") || 
+          error.message.includes("timeout")) {
+        console.warn("Network related error - clearing affected queries only");
+        queryClient.invalidateQueries({ queryKey: ['auth'] });
       }
     };
 
-    window.addEventListener('error', (event) => handleError(event.error));
-    window.addEventListener('unhandledrejection', (event) => handleError(event.reason));
+    const errorHandler = (event: ErrorEvent) => handleError(event.error);
+    const rejectionHandler = (event: PromiseRejectionEvent) => handleError(event.reason);
+
+    window.addEventListener('error', errorHandler);
+    window.addEventListener('unhandledrejection', rejectionHandler);
 
     return () => {
-      window.removeEventListener('error', (event) => handleError(event.error));
-      window.removeEventListener('unhandledrejection', (event) => handleError(event.reason));
+      window.removeEventListener('error', errorHandler);
+      window.removeEventListener('unhandledrejection', rejectionHandler);
     };
   }, [queryClient]);
 
@@ -39,23 +46,33 @@ const AppProviders = ({ children }: AppProvidersProps) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Reload critical data when the page becomes visible again
-        console.log("Page visibility changed to visible, invalidating auth queries");
-        queryClient.invalidateQueries({ queryKey: ['auth'] });
+        // Recharger seulement les données d'authentification quand nécessaire
+        const lastFocus = parseInt(sessionStorage.getItem('lastFocusTime') || '0');
+        const now = Date.now();
+        
+        // Seulement rafraîchir si plus de 60 secondes se sont écoulées
+        if (now - lastFocus > 60000) {
+          console.log("Page visibility changed to visible, invalidating auth queries");
+          queryClient.invalidateQueries({ queryKey: ['auth'] });
+          sessionStorage.setItem('lastFocusTime', now.toString());
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    sessionStorage.setItem('lastFocusTime', Date.now().toString());
+    
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [queryClient]);
 
-  // Add a handler to clean up the query cache and retry failed queries
+  // Périodiquement vérifier pour des problèmes de session
   useEffect(() => {
+    // Exécuter moins souvent pour éviter les surcharges
     const cleanupInterval = setInterval(() => {
-      // Clean up queries older than 15 minutes to avoid memory issues
+      // Clean up queries older than 30 minutes to avoid memory issues
       console.log("Running scheduled cleanup of old queries");
       queryClient.clear();
-    }, 900000); // 15 minutes
+    }, 30 * 60 * 1000); // 30 minutes au lieu de 15
     
     return () => clearInterval(cleanupInterval);
   }, [queryClient]);
