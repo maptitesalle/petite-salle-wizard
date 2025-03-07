@@ -40,10 +40,7 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
       await onLogin(email, password);
     } catch (error) {
       console.error('Login form error:', error);
-    } finally {
-      if (!isLoading) {
-        setFormSubmitting(false);
-      }
+      setFormSubmitting(false);
     }
   };
 

@@ -6,7 +6,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/context/AuthContext';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, Loader2 } from 'lucide-react';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -15,9 +15,9 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { isAuthenticated, isLoading: authLoading, login, refreshSession } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, sessionChecked, login, refreshSession } = useAuth();
   
-  // Montrer le bouton de rafraîchissement après 3 secondes si toujours en chargement
+  // Show refresh button after 3 seconds if still loading
   useEffect(() => {
     const timer = setTimeout(() => {
       if (authLoading) {
@@ -28,20 +28,20 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, [authLoading]);
   
-  // Rediriger si déjà connecté
+  // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && sessionChecked) {
       const returnTo = location.state?.returnTo || '/dashboard';
       navigate(returnTo, { replace: true });
     }
-  }, [isAuthenticated, navigate, location.state]);
+  }, [isAuthenticated, sessionChecked, navigate, location.state]);
   
-  // Réinitialiser l'erreur au montage
+  // Reset error on mount
   useEffect(() => {
     setErrorMessage(null);
   }, []);
   
-  // Gérer les problèmes de session
+  // Handle session issues
   useEffect(() => {
     if (location.search?.includes("error=")) {
       setErrorMessage("Problème d'authentification. Veuillez réessayer.");
@@ -54,14 +54,11 @@ const Login = () => {
     
     try {
       await login(email, password);
-      
-      // Si on arrive ici, la connexion a réussi
-      const returnTo = location.state?.returnTo || '/dashboard';
-      navigate(returnTo, { replace: true });
+      // If we get here, login succeeded
     } catch (error: any) {
       console.error("Login error:", error);
       
-      // Message d'erreur convivial
+      // User-friendly error message
       let errorMsg = "Une erreur est survenue lors de la connexion";
       
       if (error.message?.includes('Invalid login credentials')) {
@@ -73,11 +70,6 @@ const Login = () => {
       }
       
       setErrorMessage(errorMsg);
-      toast({
-        variant: "destructive",
-        title: "Erreur de connexion",
-        description: errorMsg,
-      });
     } finally {
       setIsLoading(false);
     }
@@ -103,6 +95,7 @@ const Login = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
         <div className="text-center">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-mps-primary" />
           <p className="mb-4">Vérification de la session...</p>
         </div>
       </div>

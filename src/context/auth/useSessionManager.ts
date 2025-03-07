@@ -37,7 +37,7 @@ export const useSessionManager = () => {
     setError(null);
     
     try {
-      // Utiliser getSession directement sans délai d'attente
+      // Get session directly without timeout
       const { data, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
@@ -45,25 +45,28 @@ export const useSessionManager = () => {
         throw sessionError;
       }
       
-      // Si nous avons une session, la traiter
+      // Process session if we have one
       if (data && data.session) {
         console.log("Valid session found:", data.session.user.id);
         await processSession(data.session, setUser);
       } else {
-        // Aucune session trouvée
+        // No session found
         console.log("No session found");
         setUser(null);
       }
+      
+      return data.session;
     } catch (error) {
       console.error("Error getting session:", error);
       setError(error as Error);
       setUser(null);
+      return null;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Vérification directe de session sans récupération du profil utilisateur
+  // Direct session check without user profile retrieval
   const checkSessionOnly = async () => {
     try {
       const { data, error } = await supabase.auth.getSession();

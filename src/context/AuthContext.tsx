@@ -54,7 +54,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         title: "Connexion réussie",
         description: "Bienvenue sur Ma P'tite Salle",
       });
-      return;
     } catch (error: any) {
       console.error("Login error:", error);
       let message = "Erreur de connexion";
@@ -111,7 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Refresh session function (avec notification visuelle)
+  // Refresh session function with visual notification
   const refreshSession = async (): Promise<void> => {
     setIsLoading(true);
     sonnerToast.loading("Vérification de la session...");
@@ -156,7 +155,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initAuth();
     
-    // Configuration du listener de changement d'état d'authentification
+    // Set up listener for auth state changes
+    console.log("AuthContext: Setting up auth state change listener");
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`AuthContext: Auth state changed, event: ${event}`);
       
