@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,23 +19,45 @@ const Login = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  // Session verification function
+  const verifySession = useCallback(async () => {
+    try {
+      console.log('Login page - Verifying Supabase session');
+      const { data } = await supabase.auth.getSession();
+      const hasValidSession = !!data.session;
+      
+      console.log(`Login page - Session verification: ${hasValidSession ? 'Valid session found' : 'No valid session'}`);
+      setSessionChecked(true);
+      
+      return hasValidSession;
+    } catch (error) {
+      console.error('Login page - Error verifying session:', error);
+      setSessionChecked(true);
+      return false;
+    }
+  }, []);
+
+  // Initial session verification
+  useEffect(() => {
+    verifySession();
+  }, [verifySession]);
 
   // Debug log to check authentication state
   useEffect(() => {
-    console.log('Login page - Auth state:', { isAuthenticated, isLoading, user });
-    
-    // Check the current session on component mount
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      console.log('Login page - Current session:', data.session);
-    };
-    
-    checkSession();
-  }, [isAuthenticated, isLoading, user]);
+    console.log('Login page - Auth state:', { 
+      isAuthenticated, 
+      isLoading, 
+      user,
+      sessionChecked,
+      redirectAttempted
+    });
+  }, [isAuthenticated, isLoading, user, sessionChecked, redirectAttempted]);
 
   // Add an effect to handle redirects when authentication state changes
   useEffect(() => {
-    if (isAuthenticated && !isLoading && !redirectAttempted) {
+    if ((isAuthenticated || sessionChecked) && !isLoading && !redirectAttempted) {
       // Get return URL from location state or default to dashboard
       const returnTo = location.state?.returnTo || '/dashboard';
       console.log('Login page - User is authenticated, navigating to:', returnTo);
@@ -44,9 +66,9 @@ const Login = () => {
       // Add a delay to ensure auth context is fully updated
       setTimeout(() => {
         navigate(returnTo, { replace: true });
-      }, 1500);
+      }, 1000);
     }
-  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted]);
+  }, [isAuthenticated, isLoading, navigate, location.state, redirectAttempted, sessionChecked]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +86,15 @@ const Login = () => {
         description: "Bienvenue sur Ma P'tite Salle",
       });
       
-      // We'll rely on the useEffect above for navigation after auth state updates
+      // Trigger immediate session check
+      const hasSession = await verifySession();
+      
+      if (hasSession) {
+        const returnTo = location.state?.returnTo || '/dashboard';
+        setTimeout(() => {
+          navigate(returnTo, { replace: true });
+        }, 1000);
+      }
     } catch (error: any) {
       console.error("Login page - Erreur de connexion:", error);
       
@@ -74,6 +104,8 @@ const Login = () => {
         errorMessage = "Identifiants invalides. Vérifiez votre email et mot de passe.";
       } else if (error.message?.includes('Email not confirmed')) {
         errorMessage = "Veuillez confirmer votre email avant de vous connecter.";
+      } else if (error.message?.includes('network') || error.message?.includes('Network')) {
+        errorMessage = "Problème de connexion réseau. Veuillez réessayer.";
       }
       
       setErrorMsg(errorMessage);
@@ -87,17 +119,21 @@ const Login = () => {
     }
   };
 
-  // If user is already authenticated on initial render, redirect
-  useEffect(() => {
-    if (isAuthenticated && !isLoading && !redirectAttempted) {
-      console.log('Login page - User already authenticated, redirecting to dashboard');
-      setRedirectAttempted(true);
-      
-      setTimeout(() => {
+  // Manual retry function
+  const handleRetry = async () => {
+    setIsSubmitting(true);
+    try {
+      console.log('Login page - Manual retry');
+      await verifySession();
+      if (isAuthenticated) {
         navigate('/dashboard', { replace: true });
-      }, 1500);
+      }
+    } catch (error) {
+      console.error('Login page - Retry error:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-  }, []);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
@@ -141,6 +177,17 @@ const Login = () => {
               >
                 {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
               </Button>
+              
+              {errorMsg.includes('réseau') && (
+                <Button 
+                  type="button"
+                  variant="outline"
+                  className="w-full mt-2"
+                  onClick={handleRetry}
+                >
+                  Réessayer la connexion
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>

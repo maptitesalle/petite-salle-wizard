@@ -56,19 +56,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  // Modified login to match the return type in AuthContextType (Promise<void>)
+  const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      const result = await authLogin(email, password);
+      await authLogin(email, password);
       // Attendre explicitement la mise à jour de l'état d'authentification
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return result;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     try {
       await authLogout();
       setUser(null);
@@ -78,10 +78,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  // Modified register to match the return type in AuthContextType (Promise<void>)
+  const register = async (email: string, password: string, name: string): Promise<void> => {
     setIsLoading(true);
     try {
-      return await authRegister(email, password, name);
+      await authRegister(email, password, name);
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +147,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const value = {
+  const value: AuthContextType = {
     user,
     isAuthenticated: !!user && sessionChecked,
     isLoading,

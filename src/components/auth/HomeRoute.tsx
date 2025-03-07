@@ -10,14 +10,21 @@ const HomeRoute = () => {
   const [showTimeout, setShowTimeout] = useState(false);
   const [forceRedirect, setForceRedirect] = useState(false);
   const [recoveryAttempted, setRecoveryAttempted] = useState(false);
-  const [localSessionCheck, setLocalSessionCheck] = useState({ 
-    isChecking: true,
+  const [directSessionCheck, setDirectSessionCheck] = useState({
+    isComplete: false,
     hasSession: false,
-    error: null as Error | null 
+    lastChecked: 0
   });
   
-  // Vérification directe de session avec Supabase
+  // Improved direct Supabase session check with caching
   const verifySupabaseSession = useCallback(async () => {
+    // Skip if we've checked recently
+    const now = Date.now();
+    if (now - directSessionCheck.lastChecked < 3000) {
+      console.log("HomeRoute - Skipping direct session check (checked recently)");
+      return directSessionCheck.hasSession;
+    }
+    
     try {
       console.log("HomeRoute - Direct Supabase session check");
       const { data, error } = await supabase.auth.getSession();
@@ -27,36 +34,51 @@ const HomeRoute = () => {
       const hasValidSession = !!data.session;
       console.log(`HomeRoute - Supabase session: ${hasValidSession ? 'Valid session found' : 'No valid session'}`);
       
-      setLocalSessionCheck({
-        isChecking: false,
+      setDirectSessionCheck({
+        isComplete: true,
         hasSession: hasValidSession,
-        error: null
+        lastChecked: now
       });
-      
-      // Si inconsistance entre état local et Supabase
-      if (hasValidSession !== isAuthenticated && !isLoading && sessionChecked) {
-        console.warn("HomeRoute - Auth state inconsistent with Supabase session, refreshing");
-        handleSessionRecovery();
-      }
       
       return hasValidSession;
     } catch (error) {
       console.error("HomeRoute - Error checking Supabase session:", error);
-      setLocalSessionCheck({
-        isChecking: false,
-        hasSession: false,
-        error: error as Error
-      });
+      setDirectSessionCheck(prev => ({
+        ...prev,
+        isComplete: true,
+        lastChecked: now
+      }));
       return false;
     }
-  }, [isAuthenticated, isLoading, sessionChecked]);
+  }, [directSessionCheck.lastChecked, directSessionCheck.hasSession]);
   
-  // Vérification initiale de session
+  // Optimized session recovery for all cases
+  const handleSessionRecovery = useCallback(async () => {
+    if (recoveryAttempted) return;
+    
+    setRecoveryAttempted(true);
+    console.log("HomeRoute - Attempting session recovery");
+    
+    const hasDirectSession = await verifySupabaseSession();
+    
+    if (hasDirectSession) {
+      try {
+        console.log("HomeRoute - Direct session found, refreshing auth context");
+        await refreshSession();
+      } catch (error) {
+        console.error("HomeRoute - Error refreshing session", error);
+      }
+    } else {
+      console.log("HomeRoute - No direct session found, skipping refresh");
+    }
+  }, [recoveryAttempted, verifySupabaseSession, refreshSession]);
+  
+  // Initial session check on mount - just once
   useEffect(() => {
     verifySupabaseSession();
   }, [verifySupabaseSession]);
   
-  // Logs de diagnostic
+  // Logs for diagnostic with optimized output
   useEffect(() => {
     console.log("Home route check:", { 
       isAuthenticated, 
@@ -64,71 +86,54 @@ const HomeRoute = () => {
       sessionChecked, 
       showTimeout,
       forceRedirect,
-      localSessionState: localSessionCheck,
+      directSessionComplete: directSessionCheck.isComplete,
+      directSessionHasSession: directSessionCheck.hasSession,
       recoveryAttempted
     });
-  }, [isAuthenticated, isLoading, sessionChecked, showTimeout, forceRedirect, localSessionCheck, recoveryAttempted]);
+  }, [isAuthenticated, isLoading, sessionChecked, showTimeout, forceRedirect, directSessionCheck, recoveryAttempted]);
 
-  // Délai court pour montrer timeout
+  // Shorter timeout for better UX
   useEffect(() => {
     const timer = setTimeout(() => {
-      if ((isLoading || !sessionChecked || localSessionCheck.isChecking) && !recoveryAttempted) {
+      if ((isLoading || !sessionChecked || !directSessionCheck.isComplete) && !recoveryAttempted) {
         setShowTimeout(true);
       }
-    }, 3000);
+    }, 2000);
     
     return () => clearTimeout(timer);
-  }, [isLoading, sessionChecked, localSessionCheck.isChecking, recoveryAttempted]);
+  }, [isLoading, sessionChecked, directSessionCheck.isComplete, recoveryAttempted]);
   
-  // Délai intermédiaire pour récupération auto
+  // Auto-recovery for faster response
   useEffect(() => {
     const maxAuthWait = setTimeout(() => {
-      if ((isLoading || !sessionChecked || localSessionCheck.isChecking) && !recoveryAttempted) {
+      if ((isLoading || !sessionChecked || !directSessionCheck.isComplete) && !recoveryAttempted) {
         console.log("HomeRoute - Auth check taking too long, trying session refresh");
         handleSessionRecovery();
       }
-    }, 5000);
+    }, 3000);
     
-    // Délai long pour forcer l'affichage
+    // Reduced timeout for better UX
     const forceTimer = setTimeout(() => {
-      if ((isLoading || !sessionChecked || localSessionCheck.isChecking)) {
+      if ((isLoading || !sessionChecked || !directSessionCheck.isComplete)) {
         console.log("HomeRoute - Auth check taking too long, forcing index render");
         setForceRedirect(true);
       }
-    }, 8000);
+    }, 5000);
     
     return () => {
       clearTimeout(maxAuthWait);
       clearTimeout(forceTimer);
     };
-  }, [isLoading, sessionChecked, localSessionCheck.isChecking, recoveryAttempted]);
+  }, [isLoading, sessionChecked, directSessionCheck.isComplete, recoveryAttempted, handleSessionRecovery]);
   
-  // Fonction de récupération de session
-  const handleSessionRecovery = async () => {
-    if (recoveryAttempted) return;
-    
-    setRecoveryAttempted(true);
-    console.log("HomeRoute - Attempting session recovery");
-    
-    try {
-      await refreshSession();
-      console.log("HomeRoute - Session refreshed successfully");
-      
-      // Double-vérification avec Supabase
-      await verifySupabaseSession();
-    } catch (error) {
-      console.error("HomeRoute - Error refreshing session", error);
-    }
-  };
-  
-  // Si on force la redirection après long timeout
+  // If we force the redirection after long timeout
   if (forceRedirect) {
     console.log("HomeRoute - Forcing index page render after timeout");
     return <Index />;
   }
   
-  // Si chargement en cours
-  if (isLoading || !sessionChecked || localSessionCheck.isChecking) {
+  // If loading in progress
+  if (isLoading || !sessionChecked || !directSessionCheck.isComplete) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="mb-4">Chargement...</div>
@@ -153,13 +158,16 @@ const HomeRoute = () => {
     );
   }
 
-  // Si authentifié, redirection au dashboard
-  if ((isAuthenticated || localSessionCheck.hasSession) && !isLoading && sessionChecked) {
+  // Make decision based on both auth context and direct session check
+  const hasAuthentication = isAuthenticated || directSessionCheck.hasSession;
+  
+  // If authenticated, redirect to dashboard
+  if (hasAuthentication && !isLoading && sessionChecked) {
     console.log("HomeRoute - User authenticated, redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Si non authentifié, afficher la page d'accueil
+  // If not authenticated, show home page
   console.log("HomeRoute - User not authenticated, showing home page");
   return <Index />;
 };
