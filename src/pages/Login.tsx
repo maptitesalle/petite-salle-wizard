@@ -4,99 +4,41 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import LoginForm from '@/components/auth/LoginForm';
+import { useAuth } from '@/context/AuthContext';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionChecking, setSessionChecking] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   
-  // Check if user is already logged in on component mount
+  // Redirect if already logged in
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        setSessionChecking(true);
-        console.log("Login - Checking for existing session");
-        
-        // Création d'un délai pour éviter les timeouts indéfinis
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Session check timeout")), 5000)
-        );
-        
-        const sessionPromise = supabase.auth.getSession();
-        
-        // Race entre la vérification de session et le timeout
-        const result = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as { data: { session: any }, error: any } | Error;
-        
-        if (result instanceof Error) {
-          console.error("Login session check timed out:", result);
-          setSessionChecking(false);
-          return;
-        }
-        
-        const { data, error } = result;
-        
-        if (error) {
-          console.error("Login check session error:", error);
-          return;
-        }
-        
-        if (data.session) {
-          console.log("Login - User already logged in, redirecting");
-          // User is already logged in, redirect to dashboard
-          const returnTo = location.state?.returnTo || '/dashboard';
-          navigate(returnTo, { replace: true });
-        } else {
-          console.log("Login - No active session found");
-        }
-      } catch (error) {
-        console.error("Error checking session:", error);
-      } finally {
-        setSessionChecking(false);
-      }
-    };
-    
-    checkSession();
-  }, [navigate, location.state]);
+    if (isAuthenticated) {
+      const returnTo = location.state?.returnTo || '/dashboard';
+      navigate(returnTo, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location.state]);
   
   const handleLogin = async (email: string, password: string) => {
     setIsLoading(true);
     setErrorMessage(null);
     
     try {
-      // Attempt to sign in with email and password
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      // Use the auth context to log in
+      const { login } = useAuth();
+      await login(email, password);
       
-      if (error) {
-        throw error;
-      }
-      
-      if (data.session) {
-        toast({
-          title: "Connexion réussie",
-          description: "Bienvenue sur Ma P'tite Salle",
-        });
-        
-        // Navigate to the returnTo path or dashboard
-        const returnTo = location.state?.returnTo || '/dashboard';
-        navigate(returnTo, { replace: true });
-      } else {
-        throw new Error("Aucune session utilisateur n'a été créée");
-      }
+      // If we get here, login was successful
+      const returnTo = location.state?.returnTo || '/dashboard';
+      navigate(returnTo, { replace: true });
     } catch (error: any) {
       console.error("Login error:", error);
       
-      // Handle specific error cases
+      // Set a user-friendly error message
       let errorMsg = "Une erreur est survenue lors de la connexion";
       
       if (error.message?.includes('Invalid login credentials')) {
@@ -108,27 +50,16 @@ const Login = () => {
       }
       
       setErrorMessage(errorMsg);
-      toast({
-        variant: "destructive",
-        title: "Erreur de connexion",
-        description: errorMsg,
-      });
     } finally {
       setIsLoading(false);
     }
   };
   
-  if (sessionChecking) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
         <div className="text-center">
           <p className="mb-4">Vérification de la session...</p>
-          <Button 
-            variant="outline" 
-            onClick={() => window.location.reload()}
-          >
-            Rafraîchir la page
-          </Button>
         </div>
       </div>
     );

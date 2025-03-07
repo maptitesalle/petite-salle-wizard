@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AuthContextType, AuthUser } from './auth/types';
 import { useSessionManager } from './auth/useSessionManager';
 import { useAuthOperations } from './auth/useAuthOperations';
+import { useToast } from '@/hooks/use-toast';
 
 // Create the context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,118 +25,130 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [sessionChecked, setSessionChecked] = useState(false);
-
+  const [initComplete, setInitComplete] = useState(false);
+  const { toast } = useToast();
+  
   const { getCurrentSession, processSession } = useSessionManager();
   const { login: authLogin, logout: authLogout, register: authRegister } = useAuthOperations();
 
   // Login function
   const login = async (email: string, password: string): Promise<void> => {
-    setIsLoading(true);
     try {
       const result = await authLogin(email, password);
       if (!result?.session) {
         throw new Error("Login successful but no session returned");
       }
-      // Session change will be detected by the auth state listener
-    } catch (error) {
-      setIsLoading(false);
+      await processSession(result.session, setUser);
+      toast({
+        title: "Connexion réussie",
+        description: "Bienvenue sur Ma P'tite Salle",
+      });
+      return;
+    } catch (error: any) {
+      console.error("Login error:", error);
+      let message = "Erreur de connexion";
+      if (error.message?.includes('Invalid login credentials')) {
+        message = "Identifiants invalides";
+      }
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: message,
+      });
       throw error;
     }
   };
 
   // Logout function
   const logout = async (): Promise<void> => {
-    setIsLoading(true);
     try {
       await authLogout();
       setUser(null);
-      setSessionChecked(true);
-    } finally {
-      setIsLoading(false);
+      toast({
+        title: "Déconnexion réussie",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        variant: "destructive",
+        title: "Erreur de déconnexion",
+      });
+      throw error;
     }
   };
 
   // Register function
   const register = async (email: string, password: string, name: string): Promise<void> => {
-    setIsLoading(true);
     try {
       await authRegister(email, password, name);
-      // Session change will be detected by the auth state listener
-    } catch (error) {
-      setIsLoading(false);
+      toast({
+        title: "Inscription réussie",
+        description: "Veuillez vous connecter",
+      });
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      let message = "Erreur d'inscription";
+      if (error.message?.includes('User already registered')) {
+        message = "Cet email est déjà utilisé";
+      }
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: message,
+      });
       throw error;
     }
   };
 
-  // Get initial session on mount
+  // Initialize auth state
   useEffect(() => {
     let isMounted = true;
     
-    const getInitialSession = async () => {
+    const initAuth = async () => {
       if (!isMounted) return;
+      setIsLoading(true);
       
       try {
-        await getCurrentSession(setUser, setIsLoading, setSessionChecked);
+        await getCurrentSession(setUser);
       } catch (error) {
-        console.error('AuthContext: Error in initial session fetch:', error);
+        console.error('Error in initial session fetch:', error);
+      } finally {
         if (isMounted) {
-          setUser(null);
           setIsLoading(false);
-          setSessionChecked(true);
+          setInitComplete(true);
         }
       }
     };
 
-    getInitialSession();
+    initAuth();
     
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Auth state change listener
-  useEffect(() => {
-    console.log("AuthContext: Setting up auth state change listener");
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log(`AuthContext: Auth state changed, event: ${event}`);
-      
-      try {
-        await processSession(newSession, setUser, setIsLoading, setSessionChecked);
-      } catch (error) {
-        console.error("AuthContext: Error processing auth state change:", error);
-        setUser(null);
-        setIsLoading(false);
-        setSessionChecked(true);
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`Auth state changed: ${event}`);
+      if (isMounted) {
+        try {
+          await processSession(session, setUser);
+        } catch (error) {
+          console.error("Error processing auth state change:", error);
+        }
       }
     });
 
     return () => {
-      console.log("AuthContext: Cleaning up auth state change listener");
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  // Manual session refresh function
-  const refreshSession = async (): Promise<void> => {
-    try {
-      console.log('AuthContext: Manually refreshing session');
-      await getCurrentSession(setUser, setIsLoading, setSessionChecked);
-    } catch (error) {
-      console.error('AuthContext: Error refreshing session:', error);
-    }
-  };
-
   const value: AuthContextType = {
     user,
-    isAuthenticated: !!user && sessionChecked,
+    isAuthenticated: !!user,
     isLoading,
-    sessionChecked,
+    sessionChecked: initComplete,
     login,
     logout,
     register,
-    refreshSession
+    refreshSession: async () => await getCurrentSession(setUser)
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
