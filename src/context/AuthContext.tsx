@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthContextType, AuthUser } from './auth/types';
-import { useProfileFetcher } from './auth/useProfileFetcher';
 import { useSessionManager } from './auth/useSessionManager';
 import { useAuthOperations } from './auth/useAuthOperations';
 
@@ -26,62 +25,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [sessionCheckInProgress, setSessionCheckInProgress] = useState(false);
-  const [lastSessionCheck, setLastSessionCheck] = useState<number>(0);
-  const [visibilityHidden, setVisibilityHidden] = useState(false);
 
-  const { fetchUserProfile } = useProfileFetcher();
-  const { processSession, refreshSession } = useSessionManager();
+  const { getCurrentSession, processSession } = useSessionManager();
   const { login: authLogin, logout: authLogout, register: authRegister } = useAuthOperations();
 
-  // Rate limit session checks
-  const shouldCheckSession = () => {
-    const now = Date.now();
-    const minInterval = 1000; // 1 second minimum between checks
-    return !sessionCheckInProgress && (now - lastSessionCheck > minInterval);
-  };
-
-  const handleRefreshSession = async () => {
-    if (!shouldCheckSession()) {
-      console.log('AuthContext: Skipping session refresh - too frequent or check in progress');
-      return;
-    }
-
-    setSessionCheckInProgress(true);
-    setLastSessionCheck(Date.now());
-
-    try {
-      console.log('AuthContext: Manually refreshing session');
-      await refreshSession(setUser, setIsLoading, setSessionChecked);
-    } finally {
-      setSessionCheckInProgress(false);
-    }
-  };
-
-  // Login function with explicit Promise<void> return type
+  // Login function
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
       const result = await authLogin(email, password);
       if (!result?.session) {
-        console.warn("AuthContext: Login successful but no session returned");
+        throw new Error("Login successful but no session returned");
       }
-      // Wait for auth state change to process the user
-      return new Promise<void>(resolve => {
-        const timeout = setTimeout(() => {
-          setIsLoading(false);
-          resolve();
-        }, 1000);
-        return () => clearTimeout(timeout);
-      });
+      // Session change will be detected by the auth state listener
     } catch (error) {
       setIsLoading(false);
       throw error;
     }
   };
 
-  // Logout function with explicit Promise<void> return type
+  // Logout function
   const logout = async (): Promise<void> => {
+    setIsLoading(true);
     try {
       await authLogout();
       setUser(null);
@@ -91,57 +56,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Register function with explicit Promise<void> return type
+  // Register function
   const register = async (email: string, password: string, name: string): Promise<void> => {
     setIsLoading(true);
     try {
       await authRegister(email, password, name);
-      // Wait for auth state change to process the user
-      return new Promise<void>(resolve => {
-        const timeout = setTimeout(() => {
-          setIsLoading(false);
-          resolve();
-        }, 1000);
-        return () => clearTimeout(timeout);
-      });
+      // Session change will be detected by the auth state listener
     } catch (error) {
       setIsLoading(false);
       throw error;
     }
   };
 
-  // Get initial session only once on mount
+  // Get initial session on mount
   useEffect(() => {
     let isMounted = true;
     
     const getInitialSession = async () => {
-      if (!shouldCheckSession() || !isMounted) return;
-      
-      setSessionCheckInProgress(true);
-      setLastSessionCheck(Date.now());
+      if (!isMounted) return;
       
       try {
-        console.log("AuthContext: Fetching initial session");
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (!isMounted) return;
-        
-        if (error) {
-          console.error("AuthContext: Error fetching initial session", error);
-          throw error;
-        }
-
-        await processSession(data.session, setUser, setIsLoading, setSessionChecked);
+        await getCurrentSession(setUser, setIsLoading, setSessionChecked);
       } catch (error) {
         console.error('AuthContext: Error in initial session fetch:', error);
         if (isMounted) {
           setUser(null);
           setIsLoading(false);
           setSessionChecked(true);
-        }
-      } finally {
-        if (isMounted) {
-          setSessionCheckInProgress(false);
         }
       }
     };
@@ -153,43 +94,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // Handle page visibility changes to refresh session when user returns to the app
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && visibilityHidden) {
-        console.log("Page visibility changed to visible after extended period, refreshing auth");
-        setVisibilityHidden(false);
-        handleRefreshSession();
-      } else if (document.visibilityState === 'hidden') {
-        setVisibilityHidden(true);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [visibilityHidden]);
-
-  // Auth state change listener with improved handling
+  // Auth state change listener
   useEffect(() => {
     console.log("AuthContext: Setting up auth state change listener");
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log(`AuthContext: Auth state changed, event: ${event}`);
       
-      if (!shouldCheckSession()) {
-        console.log('AuthContext: Skipping auth state change processing - too frequent');
-        return;
-      }
-      
-      setSessionCheckInProgress(true);
-      setLastSessionCheck(Date.now());
-      
       try {
         await processSession(newSession, setUser, setIsLoading, setSessionChecked);
-      } finally {
-        setSessionCheckInProgress(false);
+      } catch (error) {
+        console.error("AuthContext: Error processing auth state change:", error);
+        setUser(null);
+        setIsLoading(false);
+        setSessionChecked(true);
       }
     });
 
@@ -199,6 +117,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
+  // Manual session refresh function
+  const refreshSession = async (): Promise<void> => {
+    try {
+      console.log('AuthContext: Manually refreshing session');
+      await getCurrentSession(setUser, setIsLoading, setSessionChecked);
+    } catch (error) {
+      console.error('AuthContext: Error refreshing session:', error);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user && sessionChecked,
@@ -207,7 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     register,
-    refreshSession: handleRefreshSession
+    refreshSession
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,154 +13,65 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading, sessionChecked, refreshSession, user } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
-  const [showTimeout, setShowTimeout] = useState(false);
-  const [showMaxTimeout, setShowMaxTimeout] = useState(false);
-  const [recoveryAttempted, setRecoveryAttempted] = useState(false);
-  const [localSessionCheck, setLocalSessionCheck] = useState({ 
-    isChecking: true,
-    hasSession: false,
-    error: null as Error | null,
-    lastChecked: 0
-  });
-
-  // Improved direct session check
-  const verifySupabaseSession = useCallback(async () => {
-    // Skip if we've checked recently
-    const now = Date.now();
-    if (now - localSessionCheck.lastChecked < 2000) {
-      return localSessionCheck.hasSession;
-    }
-    
-    try {
-      console.log("ProtectedRoute - Direct Supabase session check");
-      const { data, error } = await supabase.auth.getSession();
-      
-      if (error) throw error;
-      
-      const hasValidSession = !!data.session;
-      console.log(`ProtectedRoute - Supabase session: ${hasValidSession ? 'Valid session found' : 'No valid session'}`);
-      
-      setLocalSessionCheck({
-        isChecking: false,
-        hasSession: hasValidSession,
-        error: null,
-        lastChecked: now
-      });
-      
-      return hasValidSession;
-    } catch (error) {
-      console.error("ProtectedRoute - Error checking Supabase session:", error);
-      setLocalSessionCheck({
-        isChecking: false,
-        hasSession: false,
-        error: error as Error,
-        lastChecked: now
-      });
-      return false;
-    }
-  }, [localSessionCheck.lastChecked]);
-
-  // Initial session check
+  const [isCheckingSession, setIsCheckingSession] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
+  
+  // Show fallback UI after a short delay if still loading
   useEffect(() => {
-    verifySupabaseSession();
-  }, [verifySupabaseSession]);
-
-  // Ajout d'un log pour déboguer l'état d'authentification 
-  useEffect(() => {
-    console.log("ProtectedRoute - Auth state:", {
-      isAuthenticated,
-      isLoading,
-      sessionChecked,
-      user: user ? 'present' : 'absent',
-      path: location.pathname
-    });
-  }, [isAuthenticated, isLoading, sessionChecked, user, location.pathname]);
-
-  // Timeout handling
-  useEffect(() => {
-    // Show timeout options sooner
-    const timeoutTimer = setTimeout(() => {
-      if ((isLoading || !sessionChecked) && !recoveryAttempted) {
-        setShowTimeout(true);
+    const timer = setTimeout(() => {
+      if (isLoading || !sessionChecked) {
+        setShowFallback(true);
       }
-    }, 2000);
+    }, 1000);
     
-    // Auto-recovery for faster response
-    const maxAuthWait = setTimeout(() => {
-      if ((isLoading || !sessionChecked) && !recoveryAttempted) {
-        console.log("ProtectedRoute - Auth check taking too long, attempting auto-recovery");
-        setShowMaxTimeout(true);
-        handleSessionRecovery();
+    return () => clearTimeout(timer);
+  }, [isLoading, sessionChecked]);
+  
+  // Perform direct session check if needed
+  useEffect(() => {
+    const verifySession = async () => {
+      // Only check if we're in a loading state for too long
+      if ((isLoading || !sessionChecked) && showFallback && !isCheckingSession) {
+        setIsCheckingSession(true);
+        
+        try {
+          const { data } = await supabase.auth.getSession();
+          
+          if (data.session) {
+            // We have a session, try to refresh auth context
+            await refreshSession();
+          } else {
+            // No session found, we should redirect
+            console.log("ProtectedRoute: No valid session found in direct check");
+          }
+        } catch (error) {
+          console.error("ProtectedRoute: Error in direct session check", error);
+        } finally {
+          setIsCheckingSession(false);
+        }
       }
-    }, 4000);
-    
-    return () => {
-      clearTimeout(timeoutTimer);
-      clearTimeout(maxAuthWait);
     };
-  }, [isLoading, sessionChecked, recoveryAttempted]);
-
-  // Session recovery function
-  const handleSessionRecovery = async () => {
-    if (recoveryAttempted) return;
     
-    setRecoveryAttempted(true);
-    console.log("ProtectedRoute - Attempting session recovery");
-    
-    try {
-      // First check if we actually have a session directly with Supabase
-      const hasSession = await verifySupabaseSession();
-      
-      if (hasSession) {
-        await refreshSession();
-        console.log("ProtectedRoute - Session refreshed successfully");
-        toast({
-          title: "Session restaurée",
-          description: "Votre session a été rafraîchie avec succès."
-        });
-      } else {
-        console.log("ProtectedRoute - No valid session found, redirect needed");
-        toast({
-          variant: "destructive",
-          title: "Session expirée",
-          description: "Votre session a expiré. Veuillez vous reconnecter."
-        });
-      }
-    } catch (error) {
-      console.error("ProtectedRoute - Error refreshing session", error);
-    }
-  };
-
-  // If timeout maximal atteint
-  if (showMaxTimeout && (isLoading || !sessionChecked)) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <div className="mb-4">Problème d'authentification détecté</div>
-        <div className="text-sm text-mps-primary mb-4">
-          Veuillez essayer de rafraîchir la page
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-mps-primary text-white rounded-md hover:bg-mps-primary/80"
-        >
-          Rafraîchir la page
-        </button>
-      </div>
-    );
+    verifySession();
+  }, [isLoading, sessionChecked, showFallback, isCheckingSession, refreshSession]);
+  
+  // If still loading and fallback timer hasn't triggered
+  if ((isLoading || !sessionChecked) && !showFallback) {
+    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
   }
-
-  // If loading with timeout
-  if ((isLoading || !sessionChecked) && showTimeout) {
+  
+  // If loading is taking too long, show options
+  if ((isLoading || !sessionChecked) && showFallback) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="mb-4">Vérification de l'authentification...</div>
         <div className="text-sm text-mps-primary">
           <button 
-            onClick={handleSessionRecovery}
+            onClick={() => refreshSession()}
             className="underline hover:text-mps-primary/80 mr-4"
-            disabled={recoveryAttempted}
+            disabled={isCheckingSession}
           >
-            Restaurer la session
+            {isCheckingSession ? "Vérification..." : "Restaurer la session"}
           </button>
           <button 
             onClick={() => window.location.reload()}
@@ -172,24 +83,13 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       </div>
     );
   }
-
-  // If still loading
-  if (isLoading || !sessionChecked) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
-  }
-
+  
   // If not authenticated, redirect to login
   if (!isAuthenticated || !user) {
-    console.log("ProtectedRoute - Not authenticated, redirecting to login");
-    // Use a more reliable direct session check as fallback
-    if (localSessionCheck.hasSession) {
-      console.log("ProtectedRoute - Direct session check found a session, attempting recovery");
-      handleSessionRecovery();
-      return <div className="flex items-center justify-center h-screen">Restauration de la session...</div>;
-    }
+    console.log("ProtectedRoute: Not authenticated, redirecting to login");
     return <Navigate to="/login" state={{ returnTo: location.pathname }} replace />;
   }
-
+  
   // If authenticated, display children
   return <>{children}</>;
 };
