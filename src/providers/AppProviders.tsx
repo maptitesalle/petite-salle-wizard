@@ -16,12 +16,32 @@ interface AppProvidersProps {
 const AppProviders = ({ children }: AppProvidersProps) => {
   const queryClient = React.useMemo(() => createQueryClient(), []);
 
+  // Add error boundary for query client
+  useEffect(() => {
+    const handleError = (error: Error) => {
+      console.error("Global error caught:", error);
+      // Optionally reset query cache on critical errors
+      if (error.message.includes("network") || error.message.includes("timeout")) {
+        queryClient.clear();
+      }
+    };
+
+    window.addEventListener('error', (event) => handleError(event.error));
+    window.addEventListener('unhandledrejection', (event) => handleError(event.reason));
+
+    return () => {
+      window.removeEventListener('error', (event) => handleError(event.error));
+      window.removeEventListener('unhandledrejection', (event) => handleError(event.reason));
+    };
+  }, [queryClient]);
+
   // Add an event handler for page visibility changes
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Reload data when the page becomes visible again
-        queryClient.invalidateQueries();
+        // Reload critical data when the page becomes visible again
+        console.log("Page visibility changed to visible, invalidating auth queries");
+        queryClient.invalidateQueries({ queryKey: ['auth'] });
       }
     };
 
@@ -32,9 +52,10 @@ const AppProviders = ({ children }: AppProvidersProps) => {
   // Add a handler to clean up the query cache and retry failed queries
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
-      // Clean up queries older than 5 minutes to avoid memory issues
+      // Clean up queries older than 15 minutes to avoid memory issues
+      console.log("Running scheduled cleanup of old queries");
       queryClient.clear();
-    }, 300000); // 5 minutes
+    }, 900000); // 15 minutes
     
     return () => clearInterval(cleanupInterval);
   }, [queryClient]);

@@ -7,30 +7,45 @@ import Index from "@/pages/Index";
 const HomeRoute = () => {
   const { isAuthenticated, isLoading, sessionChecked } = useAuth();
   const [showTimeout, setShowTimeout] = useState(false);
+  const [forceRedirect, setForceRedirect] = useState(false);
   
-  console.log("Home route check:", { isAuthenticated, isLoading, sessionChecked });
+  console.log("Home route check:", { 
+    isAuthenticated, 
+    isLoading, 
+    sessionChecked, 
+    showTimeout,
+    forceRedirect
+  });
 
-  // Add a timeout of 5 seconds to prevent infinite loading
+  // Add a timeout of 3 seconds to prevent infinite loading
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowTimeout(true);
-    }, 5000);
+    }, 3000);
     
     return () => clearTimeout(timer);
   }, []);
   
-  // Add a maximum wait time for auth check (15 seconds)
+  // Add a maximum wait time for auth check (8 seconds)
   useEffect(() => {
     const maxAuthWait = setTimeout(() => {
       if (isLoading || !sessionChecked) {
         console.log("Auth check taking too long, forcing a refresh");
-        window.location.reload();
+        // Force redirect to home even if auth isn't ready
+        setForceRedirect(true);
       }
-    }, 15000);
+    }, 8000);
     
     return () => clearTimeout(maxAuthWait);
   }, [isLoading, sessionChecked]);
   
+  // Si on force la redirection après un timeout long
+  if (forceRedirect) {
+    console.log("Forcing index page render after timeout");
+    return <Index />;
+  }
+  
+  // Si chargement en cours
   if (isLoading && !sessionChecked) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">

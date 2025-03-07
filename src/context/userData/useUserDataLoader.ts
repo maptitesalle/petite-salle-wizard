@@ -9,12 +9,21 @@ export const useUserDataLoader = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+  const [lastAttemptTime, setLastAttemptTime] = useState<number | null>(null);
 
   const loadUserData = async (user: AuthUser | null): Promise<UserData | null> => {
     if (!user) {
       console.log('UserDataContext: No user found, initializing with default data');
       return defaultUserData;
     }
+
+    // Prévention des appels répétés trop rapides
+    const now = Date.now();
+    if (lastAttemptTime && now - lastAttemptTime < 2000) {
+      console.log(`UserDataContext: Throttling data load requests (${now - lastAttemptTime}ms since last attempt)`);
+      return null;
+    }
+    setLastAttemptTime(now);
 
     // Don't reload if we've already loaded for this user
     if (lastLoadedUserId === user.id) {

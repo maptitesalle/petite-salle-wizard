@@ -12,7 +12,7 @@ import SupplementsSection from '@/components/dashboard/SupplementsSection';
 import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
 
 const Dashboard = () => {
-  const { isAuthenticated, user, isLoading, sessionChecked, refreshSession } = useAuth();
+  const { isAuthenticated, user, isLoading: authLoading, sessionChecked, refreshSession } = useAuth();
   const { userData, isLoading: dataLoading, loadUserData } = useUserData();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -22,45 +22,65 @@ const Dashboard = () => {
   const [refreshAttempted, setRefreshAttempted] = useState(false);
   
   useEffect(() => {
-    if (sessionChecked && isAuthenticated && !isLoading && !userData && !dataLoading) {
+    console.log("Dashboard state:", { 
+      isAuthenticated, 
+      authLoading, 
+      sessionChecked,
+      hasUserData: !!userData,
+      dataLoading,
+      showTimeout,
+      showMaxTimeout,
+      refreshAttempted
+    });
+  }, [isAuthenticated, authLoading, sessionChecked, userData, dataLoading, showTimeout, showMaxTimeout, refreshAttempted]);
+  
+  useEffect(() => {
+    if (sessionChecked && isAuthenticated && !authLoading && !userData && !dataLoading) {
       console.log("Dashboard - Session checked, user authenticated, but userData is null. Reloading user data.");
       loadUserData().catch(error => {
         console.error("Error loading user data:", error);
       });
     }
     
-    if (sessionChecked && !isAuthenticated && !isLoading) {
+    if (sessionChecked && !isAuthenticated && !authLoading) {
+      console.log("Dashboard - Not authenticated, redirecting to login");
       navigate('/login');
     }
-    
+  }, [isAuthenticated, authLoading, navigate, sessionChecked, userData, dataLoading, loadUserData]);
+  
+  useEffect(() => {
     const timer = setTimeout(() => {
-      setShowTimeout(true);
-    }, 5000);
+      if (authLoading || dataLoading || !sessionChecked) {
+        console.log("Dashboard - Showing refresh options after 3s");
+        setShowTimeout(true);
+      }
+    }, 3000);
     
     const maxTimer = setTimeout(() => {
-      if ((isLoading || dataLoading) && !userData) {
+      if ((authLoading || dataLoading || !userData) && sessionChecked) {
+        console.log("Dashboard - Loading timeout exceeded (10s), suggest page reload");
         setShowMaxTimeout(true);
-        console.log("Dashboard - Loading timeout exceeded, suggest page reload");
-      }
-    }, 20000);
-    
-    const refreshTimer = setTimeout(() => {
-      if ((isLoading || dataLoading || !userData) && !refreshAttempted) {
-        console.log("Dashboard - Auto-refreshing session after timeout");
-        handleSessionRefresh();
       }
     }, 10000);
+    
+    const refreshTimer = setTimeout(() => {
+      if ((authLoading || dataLoading || !userData) && !refreshAttempted && sessionChecked) {
+        console.log("Dashboard - Auto-refreshing session after 5s timeout");
+        handleSessionRefresh();
+      }
+    }, 5000);
     
     return () => {
       clearTimeout(timer);
       clearTimeout(maxTimer);
       clearTimeout(refreshTimer);
     };
-  }, [isAuthenticated, isLoading, navigate, sessionChecked, userData, dataLoading, loadUserData, refreshAttempted]);
+  }, [authLoading, dataLoading, sessionChecked, userData, refreshAttempted]);
   
   const handleSessionRefresh = async () => {
     setRefreshAttempted(true);
     try {
+      console.log("Dashboard - Manual session refresh attempt");
       toast({
         title: "Rafraîchissement de la session",
         description: "Tentative de restauration de votre session...",
@@ -69,6 +89,7 @@ const Dashboard = () => {
       await refreshSession();
       
       if (!userData) {
+        console.log("Dashboard - Refreshing user data after session refresh");
         await loadUserData();
       }
       
@@ -91,10 +112,11 @@ const Dashboard = () => {
   };
   
   const handleRefresh = () => {
+    console.log("Dashboard - Manual page refresh");
     window.location.reload();
   };
   
-  if (showMaxTimeout && (isLoading || dataLoading || !userData)) {
+  if (showMaxTimeout && (authLoading || dataLoading || !userData)) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-md">
@@ -131,7 +153,7 @@ const Dashboard = () => {
     );
   }
   
-  if (isLoading || !sessionChecked || dataLoading) {
+  if (authLoading || !sessionChecked || dataLoading) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center">
         <div className="animate-pulse-subtle mb-6">
@@ -142,6 +164,7 @@ const Dashboard = () => {
         
         {showTimeout && (
           <div className="flex flex-col items-center gap-3">
+            <p className="text-mps-text/70 mb-2">Le chargement prend plus de temps que prévu</p>
             <Button 
               variant="default"
               onClick={handleSessionRefresh}
@@ -162,25 +185,6 @@ const Dashboard = () => {
       </div>
     );
   }
-  
-  const getFlexibilityStatus = (value: number): string => {
-    if (value >= 75) return 'excellent';
-    if (value >= 50) return 'normal';
-    return 'faible';
-  };
-  
-  const GymSection = () => (
-    <div className="p-8 text-center">
-      <Dumbbell className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
-      <h3 className="text-2xl font-semibold text-mps-text mb-2">Programme d'Entraînement</h3>
-      <p className="text-mps-text/70 mb-6">
-        Suivez votre plan d'entraînement personnalisé pour atteindre vos objectifs
-      </p>
-      <div className="border-2 border-dashed border-mps-primary/30 rounded-lg p-8 text-mps-text/50">
-        Cette section sera disponible prochainement
-      </div>
-    </div>
-  );
   
   if (!userData) {
     return (
@@ -204,6 +208,25 @@ const Dashboard = () => {
       </div>
     );
   }
+  
+  const getFlexibilityStatus = (value: number): string => {
+    if (value >= 75) return 'excellent';
+    if (value >= 50) return 'normal';
+    return 'faible';
+  };
+  
+  const GymSection = () => (
+    <div className="p-8 text-center">
+      <Dumbbell className="h-16 w-16 mx-auto mb-4 text-mps-primary opacity-50" />
+      <h3 className="text-2xl font-semibold text-mps-text mb-2">Programme d'Entraînement</h3>
+      <p className="text-mps-text/70 mb-6">
+        Suivez votre plan d'entraînement personnalisé pour atteindre vos objectifs
+      </p>
+      <div className="border-2 border-dashed border-mps-primary/30 rounded-lg p-8 text-mps-text/50">
+        Cette section sera disponible prochainement
+      </div>
+    </div>
+  );
   
   return (
     <div className="min-h-screen bg-mps-secondary/30 py-6 px-4">

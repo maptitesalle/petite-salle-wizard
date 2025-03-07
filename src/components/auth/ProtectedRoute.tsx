@@ -11,7 +11,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading, sessionChecked } = useAuth();
   const location = useLocation();
   const [showTimeout, setShowTimeout] = useState(false);
-  const [renderKey, setRenderKey] = useState(0);
+  const [showMaxTimeout, setShowMaxTimeout] = useState(false);
 
   // Log authentication state for debugging
   useEffect(() => {
@@ -19,33 +19,44 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       isAuthenticated, 
       isLoading, 
       path: location.pathname, 
-      sessionChecked, 
-      renderKey 
+      sessionChecked
     });
-  }, [isAuthenticated, isLoading, location.pathname, sessionChecked, renderKey]);
+  }, [isAuthenticated, isLoading, location.pathname, sessionChecked]);
 
-  // Set a timer to show the refresh button after 3 seconds if still loading
+  // Set a timer to show the refresh button after 2 seconds if still loading
   useEffect(() => {
     const timer = setTimeout(() => {
       if (isLoading || !sessionChecked) {
         setShowTimeout(true);
       }
-    }, 3000);
+    }, 2000); // Réduit de 3s à 2s
     
     return () => clearTimeout(timer);
   }, [isLoading, sessionChecked]);
 
-  // Detect if the auth check is taking too long and force a re-render
+  // Detect if the auth check is taking too long and show max timeout message
   useEffect(() => {
     const maxAuthWait = setTimeout(() => {
       if (isLoading || !sessionChecked) {
-        console.log("Auth check taking too long, forcing a re-render");
-        setRenderKey(prev => prev + 1);
+        console.log("Auth check taking too long, showing max timeout");
+        setShowMaxTimeout(true);
       }
-    }, 8000);
+    }, 5000); // Réduit de 8s à 5s
     
     return () => clearTimeout(maxAuthWait);
   }, [isLoading, sessionChecked]);
+
+  // If auth fails completely, force reload
+  useEffect(() => {
+    const forceReloadTimer = setTimeout(() => {
+      if ((isLoading || !sessionChecked) && showMaxTimeout) {
+        console.log("Auth check failed completely, forcing reload");
+        window.location.reload();
+      }
+    }, 15000);
+    
+    return () => clearTimeout(forceReloadTimer);
+  }, [isLoading, sessionChecked, showMaxTimeout]);
 
   // If session is checked and we're not authenticated, redirect to login
   useEffect(() => {
@@ -53,6 +64,24 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       console.log("Session checked, not authenticated, redirecting to login");
     }
   }, [sessionChecked, isAuthenticated, isLoading]);
+
+  // Si on a atteint le timeout maximum
+  if (showMaxTimeout) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <div className="mb-4">Problème d'authentification détecté</div>
+        <div className="text-sm text-mps-primary mb-4">
+          Veuillez essayer de rafraîchir la page
+        </div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-mps-primary text-white rounded-md hover:bg-mps-primary/80"
+        >
+          Rafraîchir la page
+        </button>
+      </div>
+    );
+  }
 
   // If we are still loading but it's taking too long
   if ((isLoading || !sessionChecked) && showTimeout) {

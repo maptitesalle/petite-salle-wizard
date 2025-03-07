@@ -26,6 +26,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   const { user, isAuthenticated, isLoading: authLoading, sessionChecked } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [loadAttempts, setLoadAttempts] = useState(0);
   
   const { 
     loadUserData: fetchUserData, 
@@ -52,35 +53,60 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       return;
     }
 
-    // Don't reload if we've already loaded for this user
-    if (lastLoadedUserId === user.id && userData) {
-      console.log(`UserDataContext: Already loaded data for user ${user.id}, skipping`);
-      return;
-    }
+    try {
+      // Limiter les tentatives de chargement pour éviter les boucles infinies
+      setLoadAttempts(prev => prev + 1);
+      if (loadAttempts > 5) {
+        console.error('UserDataContext: Too many load attempts, using default data');
+        setUserData(defaultUserData);
+        return;
+      }
 
-    const loadedData = await fetchUserData(user);
-    if (loadedData) {
-      setUserData(loadedData);
+      // Don't reload if we've already loaded for this user
+      if (lastLoadedUserId === user.id && userData) {
+        console.log(`UserDataContext: Already loaded data for user ${user.id}, skipping`);
+        return;
+      }
+
+      const loadedData = await fetchUserData(user);
+      if (loadedData) {
+        setUserData(loadedData);
+      }
+    } catch (error) {
+      console.error('UserDataContext: Error loading user data:', error);
+      // Fallback to default data in case of error
+      setUserData(defaultUserData);
     }
   };
 
   // Save user data - wrapper around the hook
   const saveUserData = async (): Promise<void> => {
-    await persistUserData(userData, user);
-    // Re-fetch the updated data to get the latest timestamp
-    await loadUserData();
+    try {
+      await persistUserData(userData, user);
+      // Re-fetch the updated data to get the latest timestamp
+      await loadUserData();
+    } catch (error) {
+      console.error('UserDataContext: Error saving user data:', error);
+      throw error;
+    }
   };
 
-  // Load user data when auth state is fully ready
+  // Log state changes pour debugger
   useEffect(() => {
-    console.log('UserDataContext: Auth state changed', { 
-      user, 
+    console.log('UserDataContext: Current state', { 
+      hasUser: !!user, 
       isAuthenticated, 
       authLoading, 
       sessionChecked,
-      lastLoadedUserId 
+      hasUserData: !!userData,
+      lastLoadedUserId,
+      initialized,
+      loadAttempts
     });
-    
+  }, [user, isAuthenticated, authLoading, sessionChecked, userData, lastLoadedUserId, initialized, loadAttempts]);
+
+  // Load user data when auth state is fully ready
+  useEffect(() => {
     // Only proceed when auth is fully loaded and user is authenticated
     if (!authLoading && sessionChecked && isAuthenticated && user) {
       // Check if we need to load data for this user
@@ -95,17 +121,29 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       console.log('UserDataContext: User not authenticated, resetting data');
       setUserData(null);
       setLastLoadedUserId(null);
+      setLoadAttempts(0);
     }
   }, [user, isAuthenticated, authLoading, sessionChecked]);
 
   // Initialize with default data if not loading and not initialized
   useEffect(() => {
-    if (!isLoading && !initialized && userData === null && !authLoading) {
+    if (!isLoading && !initialized && userData === null && !authLoading && sessionChecked) {
       console.log('UserDataContext: Initializing with default data (fallback)');
       setUserData(defaultUserData);
       setInitialized(true);
     }
-  }, [isLoading, initialized, userData, authLoading]);
+  }, [isLoading, initialized, userData, authLoading, sessionChecked]);
+
+  // Reset load attempts periodically
+  useEffect(() => {
+    const resetTimer = setTimeout(() => {
+      if (loadAttempts > 0) {
+        setLoadAttempts(0);
+      }
+    }, 30000); // 30 secondes
+    
+    return () => clearTimeout(resetTimer);
+  }, [loadAttempts]);
 
   const value = {
     userData,
