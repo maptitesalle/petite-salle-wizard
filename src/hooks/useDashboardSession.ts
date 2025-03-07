@@ -13,6 +13,7 @@ export const useDashboardSession = () => {
   
   const [showTimeout, setShowTimeout] = useState(false);
   const [showMaxTimeout, setShowMaxTimeout] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
   
   // Show timeout UI after a delay
   useEffect(() => {
@@ -58,6 +59,8 @@ export const useDashboardSession = () => {
   // Handle session refresh
   const handleSessionRefresh = async () => {
     try {
+      setRefreshAttempted(true);
+      
       toast({
         title: "Rafraîchissement de la session",
         description: "Tentative de restauration de votre session...",
@@ -99,6 +102,7 @@ export const useDashboardSession = () => {
     isLoading: authLoading || dataLoading,
     showTimeout,
     showMaxTimeout,
+    refreshAttempted,
     handleSessionRefresh,
     handleRefresh
   };
