@@ -1,12 +1,14 @@
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import Index from "@/pages/Index";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const HomeRoute = () => {
   const { isAuthenticated, isLoading, sessionChecked, refreshSession } = useAuth();
+  const { toast } = useToast();
   const [showTimeout, setShowTimeout] = useState(false);
   const [forceRedirect, setForceRedirect] = useState(false);
   const [recoveryAttempted, setRecoveryAttempted] = useState(false);
@@ -20,8 +22,7 @@ const HomeRoute = () => {
   const verifySupabaseSession = useCallback(async () => {
     // Skip if we've checked recently
     const now = Date.now();
-    if (now - directSessionCheck.lastChecked < 3000) {
-      console.log("HomeRoute - Skipping direct session check (checked recently)");
+    if (now - directSessionCheck.lastChecked < 2000) {
       return directSessionCheck.hasSession;
     }
     
@@ -50,81 +51,70 @@ const HomeRoute = () => {
       }));
       return false;
     }
-  }, [directSessionCheck.lastChecked, directSessionCheck.hasSession]);
+  }, [directSessionCheck.lastChecked]);
   
-  // Optimized session recovery for all cases
+  // Session recovery with improved feedback
   const handleSessionRecovery = useCallback(async () => {
     if (recoveryAttempted) return;
     
     setRecoveryAttempted(true);
     console.log("HomeRoute - Attempting session recovery");
     
-    const hasDirectSession = await verifySupabaseSession();
-    
-    if (hasDirectSession) {
-      try {
+    try {
+      const hasDirectSession = await verifySupabaseSession();
+      
+      if (hasDirectSession) {
         console.log("HomeRoute - Direct session found, refreshing auth context");
         await refreshSession();
-      } catch (error) {
-        console.error("HomeRoute - Error refreshing session", error);
+        console.log("HomeRoute - Session refreshed successfully");
+        toast({
+          title: "Session restaurée",
+          description: "Votre session a été rafraîchie avec succès."
+        });
+      } else {
+        console.log("HomeRoute - No direct session found, skipping refresh");
       }
-    } else {
-      console.log("HomeRoute - No direct session found, skipping refresh");
+    } catch (error) {
+      console.error("HomeRoute - Failed to recover session:", error);
     }
-  }, [recoveryAttempted, verifySupabaseSession, refreshSession]);
+  }, [recoveryAttempted, verifySupabaseSession, refreshSession, toast]);
   
   // Initial session check on mount - just once
   useEffect(() => {
     verifySupabaseSession();
   }, [verifySupabaseSession]);
   
-  // Logs for diagnostic with optimized output
+  // Timers and redirects
   useEffect(() => {
-    console.log("Home route check:", { 
-      isAuthenticated, 
-      isLoading, 
-      sessionChecked, 
-      showTimeout,
-      forceRedirect,
-      directSessionComplete: directSessionCheck.isComplete,
-      directSessionHasSession: directSessionCheck.hasSession,
-      recoveryAttempted
-    });
-  }, [isAuthenticated, isLoading, sessionChecked, showTimeout, forceRedirect, directSessionCheck, recoveryAttempted]);
-
-  // Shorter timeout for better UX
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if ((isLoading || !sessionChecked || !directSessionCheck.isComplete) && !recoveryAttempted) {
+    // Show timeout earlier for better UX
+    const timeoutTimer = setTimeout(() => {
+      if ((isLoading || !sessionChecked) && !recoveryAttempted) {
         setShowTimeout(true);
       }
     }, 2000);
     
-    return () => clearTimeout(timer);
-  }, [isLoading, sessionChecked, directSessionCheck.isComplete, recoveryAttempted]);
-  
-  // Auto-recovery for faster response
-  useEffect(() => {
-    const maxAuthWait = setTimeout(() => {
-      if ((isLoading || !sessionChecked || !directSessionCheck.isComplete) && !recoveryAttempted) {
+    // Auto-recovery for faster response
+    const recoveryTimer = setTimeout(() => {
+      if ((isLoading || !sessionChecked) && !recoveryAttempted) {
         console.log("HomeRoute - Auth check taking too long, trying session refresh");
         handleSessionRecovery();
       }
     }, 3000);
     
-    // Reduced timeout for better UX
+    // Force index page after waiting long enough
     const forceTimer = setTimeout(() => {
-      if ((isLoading || !sessionChecked || !directSessionCheck.isComplete)) {
+      if (isLoading || !sessionChecked) {
         console.log("HomeRoute - Auth check taking too long, forcing index render");
         setForceRedirect(true);
       }
     }, 5000);
     
     return () => {
-      clearTimeout(maxAuthWait);
+      clearTimeout(timeoutTimer);
+      clearTimeout(recoveryTimer);
       clearTimeout(forceTimer);
     };
-  }, [isLoading, sessionChecked, directSessionCheck.isComplete, recoveryAttempted, handleSessionRecovery]);
+  }, [isLoading, sessionChecked, recoveryAttempted, handleSessionRecovery]);
   
   // If we force the redirection after long timeout
   if (forceRedirect) {
@@ -133,7 +123,7 @@ const HomeRoute = () => {
   }
   
   // If loading in progress
-  if (isLoading || !sessionChecked || !directSessionCheck.isComplete) {
+  if (isLoading || !sessionChecked) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="mb-4">Chargement...</div>
@@ -158,11 +148,8 @@ const HomeRoute = () => {
     );
   }
 
-  // Make decision based on both auth context and direct session check
-  const hasAuthentication = isAuthenticated || directSessionCheck.hasSession;
-  
-  // If authenticated, redirect to dashboard
-  if (hasAuthentication && !isLoading && sessionChecked) {
+  // Make decision based on authenticated state
+  if (isAuthenticated && !isLoading && sessionChecked) {
     console.log("HomeRoute - User authenticated, redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;
   }

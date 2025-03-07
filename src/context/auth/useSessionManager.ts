@@ -21,6 +21,7 @@ export const useSessionManager = () => {
     
     if (newSession?.user) {
       try {
+        console.log("AuthContext: Processing valid session for user:", newSession.user.id);
         const userData = await fetchUserProfile(newSession.user);
         setUser(userData);
         setIsLoading(false);
@@ -32,13 +33,14 @@ export const useSessionManager = () => {
         setSessionChecked(true);
       }
     } else {
+      console.log("AuthContext: No valid session found");
       setUser(null);
       setIsLoading(false);
       setSessionChecked(true);
     }
   };
 
-  // Function to refresh the session
+  // Function to refresh the session with improved reliability
   const refreshSession = async (
     setUser: React.Dispatch<React.SetStateAction<AuthUser | null>>,
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>,
@@ -48,9 +50,24 @@ export const useSessionManager = () => {
     setSessionError(null);
     
     try {
-      console.log("AuthContext: Manually refreshing session");
+      console.log("AuthContext: Refreshing session");
       
-      // First try to refresh the session
+      // Try to get the existing session first
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error("AuthContext: Error getting session:", sessionError);
+        throw sessionError;
+      }
+      
+      if (sessionData.session) {
+        console.log("AuthContext: Using existing session");
+        await processSession(sessionData.session, setUser, setIsLoading, setSessionChecked);
+        return;
+      }
+      
+      console.log("AuthContext: No existing session, attempting refresh");
+      // Try to refresh the session
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       
       if (refreshError) {
@@ -60,22 +77,12 @@ export const useSessionManager = () => {
       
       await processSession(refreshData.session, setUser, setIsLoading, setSessionChecked);
     } catch (error) {
-      console.error("AuthContext: Error refreshing session:", error);
-      // If refresh fails, try to get fresh session
-      try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) throw sessionError;
-        
-        await processSession(sessionData.session, setUser, setIsLoading, setSessionChecked);
-      } catch (finalError) {
-        console.error("AuthContext: Complete session refresh failure:", finalError);
-        setSessionError(finalError as Error);
-        setUser(null);
-        setSession(null);
-        setIsLoading(false);
-        setSessionChecked(true);
-      }
+      console.error("AuthContext: Complete session refresh failure:", error);
+      setSessionError(error as Error);
+      setUser(null);
+      setSession(null);
+      setIsLoading(false);
+      setSessionChecked(true);
     }
   };
 
