@@ -9,6 +9,7 @@ import LoginForm from '@/components/auth/LoginForm';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionChecking, setSessionChecking] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,8 +19,29 @@ const Login = () => {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        setIsLoading(true);
-        const { data, error } = await supabase.auth.getSession();
+        setSessionChecking(true);
+        console.log("Login - Checking for existing session");
+        
+        // Création d'un délai pour éviter les timeouts indéfinis
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Session check timeout")), 5000)
+        );
+        
+        const sessionPromise = supabase.auth.getSession();
+        
+        // Race entre la vérification de session et le timeout
+        const result = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as { data: { session: any }, error: any } | Error;
+        
+        if (result instanceof Error) {
+          console.error("Login session check timed out:", result);
+          setSessionChecking(false);
+          return;
+        }
+        
+        const { data, error } = result;
         
         if (error) {
           console.error("Login check session error:", error);
@@ -27,14 +49,17 @@ const Login = () => {
         }
         
         if (data.session) {
+          console.log("Login - User already logged in, redirecting");
           // User is already logged in, redirect to dashboard
           const returnTo = location.state?.returnTo || '/dashboard';
           navigate(returnTo, { replace: true });
+        } else {
+          console.log("Login - No active session found");
         }
       } catch (error) {
         console.error("Error checking session:", error);
       } finally {
-        setIsLoading(false);
+        setSessionChecking(false);
       }
     };
     
@@ -92,6 +117,22 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+  
+  if (sessionChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
+        <div className="text-center">
+          <p className="mb-4">Vérification de la session...</p>
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+          >
+            Rafraîchir la page
+          </Button>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">

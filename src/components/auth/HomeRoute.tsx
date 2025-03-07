@@ -18,7 +18,7 @@ const HomeRoute = () => {
     lastChecked: 0
   });
   
-  // Improved direct Supabase session check with caching
+  // Improved direct Supabase session check with timeout
   const verifySupabaseSession = useCallback(async () => {
     // Skip if we've checked recently
     const now = Date.now();
@@ -28,11 +28,25 @@ const HomeRoute = () => {
     
     try {
       console.log("HomeRoute - Direct Supabase session check");
-      const { data, error } = await supabase.auth.getSession();
       
-      if (error) throw error;
+      // Timeout pour la vérification de session
+      const timeoutPromise = new Promise<{ data: null, error: Error }>((_, reject) => 
+        setTimeout(() => reject(new Error("Session check timeout")), 5000)
+      );
       
-      const hasValidSession = !!data.session;
+      const sessionPromise = supabase.auth.getSession();
+      
+      // Race entre la vérification de session et le timeout
+      const result = await Promise.race([
+        sessionPromise,
+        timeoutPromise
+      ]);
+      
+      if ('error' in result && result.error) {
+        throw result.error;
+      }
+      
+      const hasValidSession = !!result.data.session;
       console.log(`HomeRoute - Supabase session: ${hasValidSession ? 'Valid session found' : 'No valid session'}`);
       
       setDirectSessionCheck({
@@ -62,9 +76,10 @@ const HomeRoute = () => {
       showTimeout,
       forceRedirect,
       recoveryAttempted,
-      user: user ? 'present' : 'absent'
+      user: user ? 'present' : 'absent',
+      directSessionCheck
     });
-  }, [isAuthenticated, isLoading, sessionChecked, showTimeout, forceRedirect, recoveryAttempted, user]);
+  }, [isAuthenticated, isLoading, sessionChecked, showTimeout, forceRedirect, recoveryAttempted, user, directSessionCheck]);
   
   // Session recovery with improved feedback
   const handleSessionRecovery = useCallback(async () => {
@@ -94,10 +109,18 @@ const HomeRoute = () => {
   
   // Initial session check on mount - just once
   useEffect(() => {
-    verifySupabaseSession();
+    const initialCheck = async () => {
+      try {
+        await verifySupabaseSession();
+      } catch (error) {
+        console.error("HomeRoute - Initial session check failed:", error);
+      }
+    };
+    
+    initialCheck();
   }, [verifySupabaseSession]);
   
-  // Timers and redirects
+  // Timers and redirects with better timing
   useEffect(() => {
     // Show timeout earlier for better UX
     const timeoutTimer = setTimeout(() => {
@@ -153,7 +176,7 @@ const HomeRoute = () => {
               className="underline hover:text-mps-primary/80 mr-4"
               disabled={recoveryAttempted}
             >
-              Restaurer la session
+              {recoveryAttempted ? "Tentative en cours..." : "Restaurer la session"}
             </button>
             <button 
               onClick={() => window.location.reload()}
@@ -161,6 +184,15 @@ const HomeRoute = () => {
             >
               Rafraîchir la page
             </button>
+          </div>
+        )}
+        
+        {/* Afficher l'état de la session pour débogage */}
+        {showTimeout && directSessionCheck.isComplete && (
+          <div className="mt-4 text-xs text-gray-500">
+            {directSessionCheck.hasSession ? 
+              "Une session Supabase est active mais n'a pas pu être restaurée." : 
+              "Aucune session Supabase active n'a été détectée."}
           </div>
         )}
       </div>
