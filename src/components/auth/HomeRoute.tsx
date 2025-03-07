@@ -53,7 +53,7 @@ const HomeRoute = () => {
     }
   }, [directSessionCheck.lastChecked]);
   
-  // Afficher l'état actuel pour le débogage
+  // Display current state for debugging
   useEffect(() => {
     console.log("Home route check:", { 
       isAuthenticated, 
@@ -132,7 +132,7 @@ const HomeRoute = () => {
   // If we force the redirection after long timeout
   if (forceRedirect) {
     console.log("HomeRoute - Forcing index page render after timeout");
-    // Ajout d'un auto-refresh pour les cas où la session est coincée
+    // Auto-refresh for cases where the session is stuck
     if (!recoveryAttempted) {
       console.log("Index - Auto-refreshing session after timeout");
       console.log("Attempting to refresh session");
@@ -167,7 +167,7 @@ const HomeRoute = () => {
     );
   }
 
-  // Make decision based on authenticated state
+  // Make decision based on authenticated state - ensure we have both isAuthenticated AND user
   if (isAuthenticated && user) {
     console.log("HomeRoute - User authenticated, redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;

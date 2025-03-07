@@ -57,8 +57,8 @@ const Login = () => {
 
   // Add an effect to handle redirects when authentication state changes
   useEffect(() => {
-    // Only redirect if actually authenticated
-    if (isAuthenticated && !isLoading && !redirectAttempted && user) {
+    // Only redirect if actually authenticated AND we have a user object
+    if (isAuthenticated && !isLoading && user && !redirectAttempted) {
       // Get return URL from location state or default to dashboard
       const returnTo = location.state?.returnTo || '/dashboard';
       console.log('Login page - User is authenticated, navigating to:', returnTo);
@@ -124,7 +124,7 @@ const Login = () => {
     try {
       console.log('Login page - Manual retry');
       await verifySession();
-      if (isAuthenticated) {
+      if (isAuthenticated && user) {
         navigate('/dashboard', { replace: true });
       }
     } catch (error) {
@@ -133,6 +133,13 @@ const Login = () => {
       setIsSubmitting(false);
     }
   };
+
+  // If already authenticated and has a user, redirect to dashboard
+  if (isAuthenticated && user && !isLoading) {
+    console.log('Login page - Already authenticated, redirecting to dashboard');
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">

@@ -75,7 +75,7 @@ export const useSessionManager = () => {
         if (refreshError) {
           console.error("AuthContext: Session refresh failed:", refreshError);
           
-          // Si l'erreur est "Auth session missing", c'est normal, on a juste pas de session
+          // Handle the "Auth session missing" error gracefully
           if (refreshError.message?.includes('Auth session missing')) {
             console.log("AuthContext: No session to refresh, this is expected behavior");
             await processSession(null, setUser, setIsLoading, setSessionChecked);
@@ -86,8 +86,8 @@ export const useSessionManager = () => {
         }
         
         await processSession(refreshData.session, setUser, setIsLoading, setSessionChecked);
-      } catch (refreshErr) {
-        // Gérer cette erreur spécifique plus gracieusement
+      } catch (refreshErr: any) {
+        // Handle "Auth session missing" error gracefully
         if (refreshErr.message?.includes('Auth session missing')) {
           console.log("AuthContext: No session to refresh, this is expected behavior");
           await processSession(null, setUser, setIsLoading, setSessionChecked);
