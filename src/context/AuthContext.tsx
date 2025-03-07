@@ -34,7 +34,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [initComplete, setInitComplete] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const { toast } = useToast();
   
   const { getCurrentSession, processSession } = useSessionManager();
@@ -109,6 +109,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Refresh session function
+  const refreshSession = async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const session = await getCurrentSession(setUser);
+      if (session) {
+        console.log("Session refreshed successfully");
+      } else {
+        console.log("No active session found during refresh");
+      }
+    } catch (error) {
+      console.error("Error refreshing session:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Initialize auth state
   useEffect(() => {
     let isMounted = true;
@@ -125,7 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } finally {
         if (isMounted) {
           setIsLoading(false);
-          setInitComplete(true);
+          setSessionChecked(true);
         }
       }
     };
@@ -161,11 +178,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated: !!user,
     isLoading,
-    sessionChecked: initComplete,
+    sessionChecked,
     login,
     logout,
     register,
-    refreshSession: async () => await getCurrentSession(setUser)
+    refreshSession
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

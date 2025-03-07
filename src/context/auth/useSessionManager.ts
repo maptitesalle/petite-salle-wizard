@@ -37,51 +37,30 @@ export const useSessionManager = () => {
     setError(null);
     
     try {
-      // Create a timeout promise
-      let timeoutId: ReturnType<typeof setTimeout>;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => {
-          console.error("Session check timed out");
-          reject(new Error("Session check timed out"));
-        }, 5000); // 5 second timeout
-      });
+      // Direct access without timeout race for better reliability
+      const { data, error: sessionError } = await supabase.auth.getSession();
       
-      // Attempt to get the session
-      const sessionPromise = supabase.auth.getSession();
+      if (sessionError) {
+        throw sessionError;
+      }
       
-      // Race them
-      try {
-        const result = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as { data: any, error: any };
-        
-        clearTimeout(timeoutId);
-        
-        if (result.error) {
-          throw result.error;
-        }
-        
-        // If we have a session, process it
-        if (result.data && result.data.session) {
-          await processSession(result.data.session, setUser);
-          return result.data.session;
-        } else {
-          // No session found
-          setUser(null);
-          return null;
-        }
-      } catch (raceError) {
-        clearTimeout(timeoutId);
-        throw raceError;
+      // If we have a session, process it
+      if (data && data.session) {
+        await processSession(data.session, setUser);
+        setIsLoading(false);
+        return data.session;
+      } else {
+        // No session found
+        setUser(null);
+        setIsLoading(false);
+        return null;
       }
     } catch (error) {
       console.error("Error getting session:", error);
       setError(error as Error);
       setUser(null);
-      return null;
-    } finally {
       setIsLoading(false);
+      return null;
     }
   };
 

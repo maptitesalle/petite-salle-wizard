@@ -13,7 +13,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, login, refreshSession } = useAuth();
   
   // Redirect if already logged in
   useEffect(() => {
@@ -23,6 +23,18 @@ const Login = () => {
     }
   }, [isAuthenticated, navigate, location.state]);
   
+  // Reset error on mount
+  useEffect(() => {
+    setErrorMessage(null);
+  }, []);
+  
+  // Handle session issues
+  useEffect(() => {
+    if (location.search?.includes("error=")) {
+      setErrorMessage("Problème d'authentification. Veuillez réessayer.");
+    }
+  }, [location]);
+
   const handleLogin = async (email: string, password: string) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -44,13 +56,30 @@ const Login = () => {
         errorMsg = "Identifiants invalides. Vérifiez votre email et mot de passe.";
       } else if (error.message?.includes('Email not confirmed')) {
         errorMsg = "Veuillez confirmer votre email avant de vous connecter.";
-      } else if (error.message?.includes('network') || error.message?.includes('Network')) {
+      } else if (error.message?.includes('network') || error.message?.includes('Network') || error.message?.includes('time')) {
         errorMsg = "Problème de connexion réseau. Veuillez réessayer.";
       }
       
       setErrorMessage(errorMsg);
+      toast({
+        variant: "destructive",
+        title: "Erreur de connexion",
+        description: errorMsg,
+      });
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  const handleRefreshSession = async () => {
+    try {
+      await refreshSession();
+      toast({
+        title: "Session rafraîchie",
+        description: "Tentative de reconnexion en cours...",
+      });
+    } catch (error) {
+      console.error("Error refreshing session:", error);
     }
   };
   
@@ -79,16 +108,27 @@ const Login = () => {
           
           <LoginForm onLogin={handleLogin} isLoading={isLoading} />
           
-          {errorMessage?.includes('réseau') && (
-            <Button 
-              type="button"
-              variant="outline"
-              className="w-full mt-4"
-              onClick={() => window.location.reload()}
-              disabled={isLoading}
-            >
-              Rafraîchir la page
-            </Button>
+          {(errorMessage?.includes('réseau') || errorMessage?.includes('time')) && (
+            <div className="mt-4 flex flex-col gap-2">
+              <Button 
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleRefreshSession}
+                disabled={isLoading}
+              >
+                Rafraîchir la session
+              </Button>
+              <Button 
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => window.location.reload()}
+                disabled={isLoading}
+              >
+                Rafraîchir la page
+              </Button>
+            </div>
           )}
         </CardContent>
         <CardFooter className="flex justify-center">

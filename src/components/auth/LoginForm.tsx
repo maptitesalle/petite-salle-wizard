@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +14,12 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
   const [password, setPassword] = useState('');
   const { toast } = useToast();
   const [formSubmitting, setFormSubmitting] = useState(false);
+  
+  useEffect(() => {
+    if (!isLoading) {
+      setFormSubmitting(false);
+    }
+  }, [isLoading]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,10 +37,11 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
     try {
       await onLogin(email, password);
     } catch (error) {
-      // Error handling is done in the parent component
       console.error('Login form error:', error);
     } finally {
-      setFormSubmitting(false);
+      if (!isLoading) {
+        setFormSubmitting(false);
+      }
     }
   };
 
