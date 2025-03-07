@@ -6,16 +6,29 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/context/AuthContext';
+import { RefreshCcw } from 'lucide-react';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showSessionRefresh, setShowSessionRefresh] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, login, refreshSession } = useAuth();
   
-  // Redirect if already logged in
+  // Montrer le bouton de rafraîchissement après 3 secondes si toujours en chargement
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (authLoading) {
+        setShowSessionRefresh(true);
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [authLoading]);
+  
+  // Rediriger si déjà connecté
   useEffect(() => {
     if (isAuthenticated) {
       const returnTo = location.state?.returnTo || '/dashboard';
@@ -23,12 +36,12 @@ const Login = () => {
     }
   }, [isAuthenticated, navigate, location.state]);
   
-  // Reset error on mount
+  // Réinitialiser l'erreur au montage
   useEffect(() => {
     setErrorMessage(null);
   }, []);
   
-  // Handle session issues
+  // Gérer les problèmes de session
   useEffect(() => {
     if (location.search?.includes("error=")) {
       setErrorMessage("Problème d'authentification. Veuillez réessayer.");
@@ -40,16 +53,15 @@ const Login = () => {
     setErrorMessage(null);
     
     try {
-      // Use the auth context login function
       await login(email, password);
       
-      // If we get here, login was successful
+      // Si on arrive ici, la connexion a réussi
       const returnTo = location.state?.returnTo || '/dashboard';
       navigate(returnTo, { replace: true });
     } catch (error: any) {
       console.error("Login error:", error);
       
-      // Set a user-friendly error message
+      // Message d'erreur convivial
       let errorMsg = "Une erreur est survenue lors de la connexion";
       
       if (error.message?.includes('Invalid login credentials')) {
@@ -75,7 +87,7 @@ const Login = () => {
     try {
       await refreshSession();
       toast({
-        title: "Session rafraîchie",
+        title: "Rafraîchissement de session",
         description: "Tentative de reconnexion en cours...",
       });
     } catch (error) {
@@ -83,11 +95,41 @@ const Login = () => {
     }
   };
   
-  if (authLoading) {
+  const handlePageRefresh = () => {
+    window.location.reload();
+  };
+  
+  if (authLoading && !showSessionRefresh) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
         <div className="text-center">
           <p className="mb-4">Vérification de la session...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (authLoading && showSessionRefresh) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
+        <div className="text-center">
+          <p className="mb-6">La vérification de la session prend plus de temps que prévu</p>
+          <div className="space-y-3">
+            <Button 
+              variant="default"
+              onClick={handleRefreshSession}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <RefreshCcw size={16} /> Restaurer la session
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handlePageRefresh}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <RefreshCcw size={16} /> Rafraîchir la page
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -113,20 +155,20 @@ const Login = () => {
               <Button 
                 type="button"
                 variant="outline"
-                className="w-full"
+                className="w-full flex items-center justify-center gap-2"
                 onClick={handleRefreshSession}
                 disabled={isLoading}
               >
-                Rafraîchir la session
+                <RefreshCcw size={16} /> Rafraîchir la session
               </Button>
               <Button 
                 type="button"
                 variant="outline"
-                className="w-full"
-                onClick={() => window.location.reload()}
+                className="w-full flex items-center justify-center gap-2"
+                onClick={handlePageRefresh}
                 disabled={isLoading}
               >
-                Rafraîchir la page
+                <RefreshCcw size={16} /> Rafraîchir la page
               </Button>
             </div>
           )}

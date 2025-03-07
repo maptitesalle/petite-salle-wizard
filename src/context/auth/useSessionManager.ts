@@ -29,7 +29,7 @@ export const useSessionManager = () => {
     }
   };
 
-  // Get current session with safer timeout handling
+  // Get current session without timeouts
   const getCurrentSession = async (
     setUser: React.Dispatch<React.SetStateAction<AuthUser | null>>,
   ) => {
@@ -37,34 +37,33 @@ export const useSessionManager = () => {
     setError(null);
     
     try {
-      // Direct access without timeout race for better reliability
+      // Utiliser getSession directement sans délai d'attente
       const { data, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
+        console.error("Session error:", sessionError);
         throw sessionError;
       }
       
-      // If we have a session, process it
+      // Si nous avons une session, la traiter
       if (data && data.session) {
+        console.log("Valid session found:", data.session.user.id);
         await processSession(data.session, setUser);
-        setIsLoading(false);
-        return data.session;
       } else {
-        // No session found
+        // Aucune session trouvée
+        console.log("No session found");
         setUser(null);
-        setIsLoading(false);
-        return null;
       }
     } catch (error) {
       console.error("Error getting session:", error);
       setError(error as Error);
       setUser(null);
+    } finally {
       setIsLoading(false);
-      return null;
     }
   };
 
-  // Simple direct session check without user profile fetching
+  // Vérification directe de session sans récupération du profil utilisateur
   const checkSessionOnly = async () => {
     try {
       const { data, error } = await supabase.auth.getSession();

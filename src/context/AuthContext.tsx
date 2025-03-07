@@ -5,8 +5,9 @@ import { AuthContextType, AuthUser } from './auth/types';
 import { useSessionManager } from './auth/useSessionManager';
 import { useAuthOperations } from './auth/useAuthOperations';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 
-// Create the context with default values
+// Default context
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
@@ -43,6 +44,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Login function
   const login = async (email: string, password: string): Promise<void> => {
     try {
+      console.log("AuthContext: Attempting login with email:", email);
       const result = await authLogin(email, password);
       if (!result?.session) {
         throw new Error("Login successful but no session returned");
@@ -109,18 +111,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Refresh session function
+  // Refresh session function (avec notification visuelle)
   const refreshSession = async (): Promise<void> => {
     setIsLoading(true);
+    sonnerToast.loading("Vérification de la session...");
+    
     try {
       const session = await getCurrentSession(setUser);
       if (session) {
         console.log("Session refreshed successfully");
+        sonnerToast.success("Session restaurée");
       } else {
         console.log("No active session found during refresh");
+        sonnerToast.error("Aucune session trouvée");
       }
     } catch (error) {
       console.error("Error refreshing session:", error);
+      sonnerToast.error("Erreur lors du rafraîchissement de la session");
     } finally {
       setIsLoading(false);
     }
@@ -133,9 +140,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     const initAuth = async () => {
       if (!isMounted) return;
-      setIsLoading(true);
       
       try {
+        setIsLoading(true);
         await getCurrentSession(setUser);
       } catch (error) {
         console.error('Error in initial session fetch:', error);
@@ -149,22 +156,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initAuth();
     
-    // Set up auth state change listener
-    console.log("AuthContext: Setting up auth state change listener");
+    // Configuration du listener de changement d'état d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`AuthContext: Auth state changed, event: ${event}`);
-      if (isMounted) {
-        try {
-          if (session) {
-            console.log("AuthContext: Processing valid session for user:", session.user.id);
-            await processSession(session, setUser);
-          } else if (event === 'SIGNED_OUT') {
-            console.log("AuthContext: User signed out, clearing user data");
-            setUser(null);
-          }
-        } catch (error) {
-          console.error("Error processing auth state change:", error);
+      
+      if (!isMounted) return;
+      
+      try {
+        if (session) {
+          console.log("AuthContext: Processing valid session for user:", session.user.id);
+          await processSession(session, setUser);
+        } else if (event === 'SIGNED_OUT') {
+          console.log("AuthContext: User signed out, clearing user data");
+          setUser(null);
         }
+      } catch (error) {
+        console.error("Error processing auth state change:", error);
       }
     });
 

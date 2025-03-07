@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 interface LoginFormProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -78,7 +80,14 @@ const LoginForm = ({ onLogin, isLoading }: LoginFormProps) => {
           className="w-full bg-mps-primary hover:bg-mps-primary/80"
           disabled={disabled}
         >
-          {disabled ? 'Connexion en cours...' : 'Se connecter'}
+          {disabled ? (
+            <span className="flex items-center justify-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+              Connexion en cours...
+            </span>
+          ) : (
+            'Se connecter'
+          )}
         </Button>
       </div>
     </form>

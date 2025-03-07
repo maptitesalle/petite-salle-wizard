@@ -19,15 +19,15 @@ const AppProviders = ({ children }: AppProvidersProps) => {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthProvider>
-          <UserDataProvider>
-            <TooltipProvider>
+        <TooltipProvider>
+          <AuthProvider>
+            <UserDataProvider>
               <Toaster />
               <Sonner />
               {children}
-            </TooltipProvider>
-          </UserDataProvider>
-        </AuthProvider>
+            </UserDataProvider>
+          </AuthProvider>
+        </TooltipProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );
