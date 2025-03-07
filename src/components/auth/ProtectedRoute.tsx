@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,65 +14,91 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const [showTimeout, setShowTimeout] = useState(false);
   const [showMaxTimeout, setShowMaxTimeout] = useState(false);
   const [recoveryAttempted, setRecoveryAttempted] = useState(false);
-  const [isVerifyingLocally, setIsVerifyingLocally] = useState(true);
+  const [localSessionCheck, setLocalSessionCheck] = useState({ 
+    isChecking: true,
+    hasSession: false,
+    error: null as Error | null 
+  });
 
-  // Vérification locale de session au montage du composant
-  useEffect(() => {
-    const verifySession = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        console.log("ProtectedRoute - Local session check:", data.session ? "Session exists" : "No session");
-        setIsVerifyingLocally(false);
-      } catch (error) {
-        console.error("ProtectedRoute - Error checking local session:", error);
-        setIsVerifyingLocally(false);
+  // Vérification de session Supabase directe et fiable
+  const verifySupabaseSession = useCallback(async () => {
+    try {
+      console.log("ProtectedRoute - Direct Supabase session check");
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) throw error;
+      
+      const hasValidSession = !!data.session;
+      console.log(`ProtectedRoute - Supabase session: ${hasValidSession ? 'Valid session found' : 'No valid session'}`);
+      
+      setLocalSessionCheck({
+        isChecking: false,
+        hasSession: hasValidSession,
+        error: null
+      });
+      
+      // Si incohérence entre état local et Supabase
+      if (hasValidSession !== isAuthenticated && !isLoading && sessionChecked) {
+        console.warn("ProtectedRoute - Auth state inconsistent with Supabase session, refreshing");
+        handleSessionRecovery();
       }
-    };
-    
-    verifySession();
-  }, []);
+      
+      return hasValidSession;
+    } catch (error) {
+      console.error("ProtectedRoute - Error checking Supabase session:", error);
+      setLocalSessionCheck({
+        isChecking: false,
+        hasSession: false,
+        error: error as Error
+      });
+      return false;
+    }
+  }, [isAuthenticated, isLoading, sessionChecked]);
 
-  // Log authentication state for debugging
+  // Vérification initiale de session
+  useEffect(() => {
+    verifySupabaseSession();
+  }, [verifySupabaseSession]);
+
+  // Logs pour diagnostic
   useEffect(() => {
     console.log("Protected route check:", { 
       isAuthenticated, 
       isLoading, 
       path: location.pathname, 
       sessionChecked,
-      isVerifyingLocally,
+      localSessionState: localSessionCheck,
       showTimeout,
       showMaxTimeout,
       recoveryAttempted
     });
-  }, [isAuthenticated, isLoading, location.pathname, sessionChecked, isVerifyingLocally, showTimeout, showMaxTimeout, recoveryAttempted]);
+  }, [isAuthenticated, isLoading, location.pathname, sessionChecked, localSessionCheck, showTimeout, showMaxTimeout, recoveryAttempted]);
 
-  // Set a timer to show the refresh button after 2 seconds if still loading
+  // Délai court pour afficher les options de récupération
   useEffect(() => {
     const timer = setTimeout(() => {
-      if ((isLoading || !sessionChecked || isVerifyingLocally) && !recoveryAttempted) {
+      if ((isLoading || !sessionChecked || localSessionCheck.isChecking) && !recoveryAttempted) {
         setShowTimeout(true);
       }
-    }, 3000); // Augmenté à 3s pour laisser plus de temps
+    }, 3000);
     
     return () => clearTimeout(timer);
-  }, [isLoading, sessionChecked, isVerifyingLocally, recoveryAttempted]);
+  }, [isLoading, sessionChecked, localSessionCheck.isChecking, recoveryAttempted]);
 
-  // Detect if the auth check is taking too long and show max timeout message
+  // Délai long pour la récupération automatique
   useEffect(() => {
     const maxAuthWait = setTimeout(() => {
-      if ((isLoading || !sessionChecked || isVerifyingLocally) && !recoveryAttempted) {
-        console.log("Auth check taking too long, showing max timeout");
+      if ((isLoading || !sessionChecked || localSessionCheck.isChecking) && !recoveryAttempted) {
+        console.log("ProtectedRoute - Auth check taking too long, attempting auto-recovery");
         setShowMaxTimeout(true);
-        
-        // Auto-recovery attempt
         handleSessionRecovery();
       }
-    }, 7000); // Augmenté à 7s
+    }, 5000); // Réduit pour une réponse plus rapide
     
     return () => clearTimeout(maxAuthWait);
-  }, [isLoading, sessionChecked, isVerifyingLocally, recoveryAttempted]);
+  }, [isLoading, sessionChecked, localSessionCheck.isChecking, recoveryAttempted]);
 
-  // Handle session recovery
+  // Fonction de récupération de session
   const handleSessionRecovery = async () => {
     if (recoveryAttempted) return;
     
@@ -82,20 +108,20 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     try {
       await refreshSession();
       console.log("ProtectedRoute - Session refreshed successfully");
+      
+      // Double-vérification avec Supabase après le rafraîchissement
+      const hasSession = await verifySupabaseSession();
+      
+      if (!hasSession) {
+        console.log("ProtectedRoute - Session refresh failed, redirecting to login");
+      }
     } catch (error) {
       console.error("ProtectedRoute - Error refreshing session", error);
     }
   };
 
-  // If session is checked and we're not authenticated, redirect to login
-  useEffect(() => {
-    if (sessionChecked && !isAuthenticated && !isLoading && !isVerifyingLocally) {
-      console.log("Session checked, not authenticated, redirecting to login");
-    }
-  }, [sessionChecked, isAuthenticated, isLoading, isVerifyingLocally]);
-
-  // Si on a atteint le timeout maximum
-  if (showMaxTimeout && (isLoading || !sessionChecked || isVerifyingLocally)) {
+  // Si timeout maximal atteint
+  if (showMaxTimeout && (isLoading || !sessionChecked || localSessionCheck.isChecking)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="mb-4">Problème d'authentification détecté</div>
@@ -112,8 +138,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // If we are still loading but it's taking too long
-  if ((isLoading || !sessionChecked || isVerifyingLocally) && showTimeout) {
+  // Si chargement en cours mais timeout atteint
+  if ((isLoading || !sessionChecked || localSessionCheck.isChecking) && showTimeout) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="mb-4">Vérification de l'authentification...</div>
@@ -136,18 +162,18 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // If we are still loading
-  if (isLoading || !sessionChecked || isVerifyingLocally) {
+  // Si chargement en cours
+  if (isLoading || !sessionChecked || localSessionCheck.isChecking) {
     return <div className="flex items-center justify-center h-screen">Chargement...</div>;
   }
 
-  // If not authenticated, redirect to login with the return path
-  if (!isAuthenticated) {
-    console.log("User not authenticated, redirecting to login");
+  // Si direct Supabase check a confirmé aucune session mais pas le contexte Auth
+  if (!isAuthenticated || !localSessionCheck.hasSession) {
+    console.log("ProtectedRoute - Not authenticated, redirecting to login");
     return <Navigate to="/login" state={{ returnTo: location.pathname }} replace />;
   }
 
-  // If authenticated, show the children
+  // Si authentifié, afficher les enfants
   return <>{children}</>;
 };
 

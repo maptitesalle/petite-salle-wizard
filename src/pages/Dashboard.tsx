@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { Edit, Utensils, Beaker, ActivitySquare, Dumbbell, RefreshCcw } from 'lu
 import NutritionSection from '@/components/dashboard/NutritionSection';
 import SupplementsSection from '@/components/dashboard/SupplementsSection';
 import FlexibilitySection from '@/components/dashboard/FlexibilitySection';
+import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard = () => {
   const { isAuthenticated, user, isLoading: authLoading, sessionChecked, refreshSession } = useAuth();
@@ -20,7 +22,35 @@ const Dashboard = () => {
   const [showTimeout, setShowTimeout] = useState(false);
   const [showMaxTimeout, setShowMaxTimeout] = useState(false);
   const [refreshAttempted, setRefreshAttempted] = useState(false);
+  const [isVerifyingSession, setIsVerifyingSession] = useState(true);
   
+  // Vérification manuelle de la session
+  useEffect(() => {
+    const verifySession = async () => {
+      try {
+        console.log("Dashboard - Verifying Supabase session");
+        const { data } = await supabase.auth.getSession();
+        
+        const hasValidSession = !!data.session;
+        console.log(`Dashboard - Session verification: ${hasValidSession ? 'Valid session found' : 'No valid session'}`);
+        
+        // Si pas de session valide mais l'état local dit qu'on est authentifié
+        if (!hasValidSession && isAuthenticated) {
+          console.warn("Dashboard - Session inconsistency detected, refreshing session");
+          await refreshSession();
+        }
+        
+        setIsVerifyingSession(false);
+      } catch (error) {
+        console.error("Dashboard - Error verifying session:", error);
+        setIsVerifyingSession(false);
+      }
+    };
+    
+    verifySession();
+  }, [isAuthenticated, refreshSession]);
+  
+  // Log de l'état pour diagnostic
   useEffect(() => {
     console.log("Dashboard state:", { 
       isAuthenticated, 
@@ -30,53 +60,74 @@ const Dashboard = () => {
       dataLoading,
       showTimeout,
       showMaxTimeout,
-      refreshAttempted
+      refreshAttempted,
+      isVerifyingSession
     });
-  }, [isAuthenticated, authLoading, sessionChecked, userData, dataLoading, showTimeout, showMaxTimeout, refreshAttempted]);
+  }, [isAuthenticated, authLoading, sessionChecked, userData, dataLoading, showTimeout, showMaxTimeout, refreshAttempted, isVerifyingSession]);
   
-  useEffect(() => {
+  // Optimisations pour éviter les chargements redondants
+  const loadUserDataIfNeeded = useCallback(async () => {
     if (sessionChecked && isAuthenticated && !authLoading && !userData && !dataLoading) {
-      console.log("Dashboard - Session checked, user authenticated, but userData is null. Reloading user data.");
-      loadUserData().catch(error => {
-        console.error("Error loading user data:", error);
-      });
+      console.log("Dashboard - Loading user data");
+      try {
+        await loadUserData();
+      } catch (error) {
+        console.error("Dashboard - Error loading user data:", error);
+        toast({
+          variant: "destructive",
+          title: "Erreur de chargement",
+          description: "Impossible de charger vos données. Veuillez réessayer.",
+        });
+      }
     }
-    
-    if (sessionChecked && !isAuthenticated && !authLoading) {
+  }, [sessionChecked, isAuthenticated, authLoading, userData, dataLoading, loadUserData, toast]);
+  
+  // Chargement des données utilisateur
+  useEffect(() => {
+    loadUserDataIfNeeded();
+  }, [loadUserDataIfNeeded]);
+  
+  // Redirection si non authentifié
+  useEffect(() => {
+    if (sessionChecked && !isAuthenticated && !authLoading && !isVerifyingSession) {
       console.log("Dashboard - Not authenticated, redirecting to login");
       navigate('/login');
     }
-  }, [isAuthenticated, authLoading, navigate, sessionChecked, userData, dataLoading, loadUserData]);
+  }, [isAuthenticated, authLoading, navigate, sessionChecked, isVerifyingSession]);
   
+  // Délais et timeouts améliorés
   useEffect(() => {
+    // Court délai pour montrer les options de rafraîchissement
     const timer = setTimeout(() => {
-      if (authLoading || dataLoading || !sessionChecked) {
-        console.log("Dashboard - Showing refresh options after 3s");
+      if ((authLoading || dataLoading || !sessionChecked || isVerifyingSession) && !refreshAttempted) {
         setShowTimeout(true);
       }
     }, 3000);
     
-    const maxTimer = setTimeout(() => {
-      if ((authLoading || dataLoading || !userData) && sessionChecked) {
-        console.log("Dashboard - Loading timeout exceeded (10s), suggest page reload");
-        setShowMaxTimeout(true);
-      }
-    }, 10000);
-    
+    // Délai intermédiaire pour la tentative de récupération automatique
     const refreshTimer = setTimeout(() => {
-      if ((authLoading || dataLoading || !userData) && !refreshAttempted && sessionChecked) {
-        console.log("Dashboard - Auto-refreshing session after 5s timeout");
+      if ((authLoading || dataLoading || !userData) && !refreshAttempted && sessionChecked && !isVerifyingSession) {
+        console.log("Dashboard - Auto-attempting session recovery (5s)");
         handleSessionRefresh();
       }
     }, 5000);
+    
+    // Long délai pour montrer le message de timeout maximal
+    const maxTimer = setTimeout(() => {
+      if ((authLoading || dataLoading || !userData) && sessionChecked && !isVerifyingSession) {
+        console.log("Dashboard - Loading timeout exceeded (10s)");
+        setShowMaxTimeout(true);
+      }
+    }, 10000);
     
     return () => {
       clearTimeout(timer);
       clearTimeout(maxTimer);
       clearTimeout(refreshTimer);
     };
-  }, [authLoading, dataLoading, sessionChecked, userData, refreshAttempted]);
+  }, [authLoading, dataLoading, sessionChecked, userData, refreshAttempted, isVerifyingSession]);
   
+  // Fonction de rafraîchissement de session améliorée
   const handleSessionRefresh = async () => {
     setRefreshAttempted(true);
     try {
@@ -86,8 +137,26 @@ const Dashboard = () => {
         description: "Tentative de restauration de votre session...",
       });
       
+      // Vérification directe avec Supabase avant de rafraîchir
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        console.log("Dashboard - No active session found, redirecting to login");
+        toast({
+          variant: "destructive",
+          title: "Session expirée",
+          description: "Votre session a expiré. Veuillez vous reconnecter.",
+        });
+        
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
+        return;
+      }
+      
+      // Rafraîchissement de la session dans le contexte
       await refreshSession();
       
+      // Chargement des données utilisateur si nécessaire
       if (!userData) {
         console.log("Dashboard - Refreshing user data after session refresh");
         await loadUserData();
@@ -98,7 +167,7 @@ const Dashboard = () => {
         description: "Votre session a été rafraîchie avec succès.",
       });
     } catch (error) {
-      console.error("Failed to refresh session:", error);
+      console.error("Dashboard - Failed to refresh session:", error);
       toast({
         variant: "destructive",
         title: "Erreur de session",
@@ -111,12 +180,14 @@ const Dashboard = () => {
     }
   };
   
+  // Fonction pour rafraîchir la page
   const handleRefresh = () => {
     console.log("Dashboard - Manual page refresh");
     window.location.reload();
   };
   
-  if (showMaxTimeout && (authLoading || dataLoading || !userData)) {
+  // Affichage pour le timeout maximal
+  if (showMaxTimeout && (authLoading || dataLoading || !userData) && !isVerifyingSession) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-md">
@@ -153,7 +224,8 @@ const Dashboard = () => {
     );
   }
   
-  if (authLoading || !sessionChecked || dataLoading) {
+  // Affichage pendant le chargement
+  if (authLoading || !sessionChecked || dataLoading || isVerifyingSession) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex flex-col items-center justify-center">
         <div className="animate-pulse-subtle mb-6">
@@ -186,6 +258,7 @@ const Dashboard = () => {
     );
   }
   
+  // Affichage si aucune donnée utilisateur
   if (!userData) {
     return (
       <div className="min-h-screen bg-mps-secondary/30 flex items-center justify-center p-4">

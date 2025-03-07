@@ -5,13 +5,17 @@ export const createQueryClient = () => {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        retry: 1,                     // Réduire pour éviter trop de tentatives qui ralentissent
-        retryDelay: (attemptIndex) => Math.min(1000 * (attemptIndex + 1), 5000), // Linéaire avec max de 5s (réduit)
+        retry: 2,                     // Augmenter légèrement le nombre de tentatives
+        retryDelay: (attemptIndex) => Math.min(1000 * (attemptIndex + 1), 5000), // Linéaire avec max de 5s
         refetchOnWindowFocus: false,  // Désactiver pour éviter des appels inutiles
-        staleTime: 60000,             // Considérer les données comme fraîches pendant 60 secondes (augmenté)
-        gcTime: 5 * 60 * 1000,        // Garder en cache pendant 5 minutes (anciennement cacheTime)
-        refetchOnMount: false,        // Ne pas refetch automatiquement à chaque montage pour éviter les surcharges
+        staleTime: 2 * 60 * 1000,     // Considérer les données comme fraîches pendant 2 minutes
+        gcTime: 10 * 60 * 1000,       // Garder en cache pendant 10 minutes
+        refetchOnMount: true,         // Refetch à chaque montage pour assurer la fraîcheur des données
       },
+      mutations: {
+        retry: 1,                     // Une seule tentative pour les mutations
+        retryDelay: 1000,             // Délai fixe de 1s
+      }
     },
   });
 };

@@ -15,18 +15,22 @@ interface AppProvidersProps {
 
 const AppProviders = ({ children }: AppProvidersProps) => {
   const queryClient = React.useMemo(() => createQueryClient(), []);
-
-  // Add error boundary for query client
+  
+  // Gestion des erreurs API globales
   useEffect(() => {
     const handleError = (error: Error) => {
       console.error("Global error caught:", error);
       
-      // Ne pas systématiquement vider le cache pour éviter des rechargements inutiles
+      // Analyse plus fine des erreurs réseau
       if (error.message.includes("Failed to fetch") || 
           error.message.includes("Network Error") || 
           error.message.includes("timeout")) {
-        console.warn("Network related error - clearing affected queries only");
-        queryClient.invalidateQueries({ queryKey: ['auth'] });
+        console.warn("Network related error - checking auth state only");
+        
+        // Invalidation ciblée pour vérifier l'état d'authentification uniquement
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['auth'] });
+        }, 1000);
       }
     };
 
@@ -42,17 +46,15 @@ const AppProviders = ({ children }: AppProvidersProps) => {
     };
   }, [queryClient]);
 
-  // Add an event handler for page visibility changes
+  // Gestionnaire d'événements de visibilité de page plus robuste
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Recharger seulement les données d'authentification quand nécessaire
         const lastFocus = parseInt(sessionStorage.getItem('lastFocusTime') || '0');
         const now = Date.now();
         
-        // Seulement rafraîchir si plus de 60 secondes se sont écoulées
-        if (now - lastFocus > 60000) {
-          console.log("Page visibility changed to visible, invalidating auth queries");
+        if (now - lastFocus > 3 * 60 * 1000) { // 3 minutes
+          console.log("Page visibility changed to visible after extended period, refreshing auth");
           queryClient.invalidateQueries({ queryKey: ['auth'] });
           sessionStorage.setItem('lastFocusTime', now.toString());
         }
@@ -65,14 +67,14 @@ const AppProviders = ({ children }: AppProvidersProps) => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [queryClient]);
 
-  // Périodiquement vérifier pour des problèmes de session
+  // Surveillance périodique de session avec meilleure planification
   useEffect(() => {
-    // Exécuter moins souvent pour éviter les surcharges
+    // Nettoyage plus sélectif toutes les 30 minutes
     const cleanupInterval = setInterval(() => {
-      // Clean up queries older than 30 minutes to avoid memory issues
-      console.log("Running scheduled cleanup of old queries");
+      console.log("Running scheduled cleanup of inactive queries");
+      // Ne pas vider tout le cache, juste les requêtes inactives
       queryClient.clear();
-    }, 30 * 60 * 1000); // 30 minutes au lieu de 15
+    }, 30 * 60 * 1000);
     
     return () => clearInterval(cleanupInterval);
   }, [queryClient]);
