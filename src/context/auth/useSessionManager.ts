@@ -87,32 +87,38 @@ export const useSessionManager = () => {
       }
       
       // Always fetch a fresh session in parallel
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error("Session error:", sessionError);
-        throw sessionError;
-      }
-      
-      // Process fresh session and update cache
-      if (data && data.session) {
-        console.log("Valid session found:", data.session.user.id);
-        // Cache the session for future quick loads
-        localStorage.setItem('recent_session', JSON.stringify(data.session));
-        localStorage.setItem('session_timestamp', now.toString());
+      console.log("Fetching fresh session from Supabase");
+      try {
+        const { data, error: sessionError } = await supabase.auth.getSession();
         
-        await processSession(data.session, setUser);
-      } else {
-        // No session found
-        console.log("No session found");
-        localStorage.removeItem('recent_session');
-        localStorage.removeItem('session_timestamp');
-        localStorage.removeItem('user_data');
-        localStorage.removeItem('user_timestamp');
-        setUser(null);
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          throw sessionError;
+        }
+        
+        // Process fresh session and update cache
+        if (data && data.session) {
+          console.log("Valid session found:", data.session.user.id);
+          // Cache the session for future quick loads
+          localStorage.setItem('recent_session', JSON.stringify(data.session));
+          localStorage.setItem('session_timestamp', now.toString());
+          
+          await processSession(data.session, setUser);
+        } else {
+          // No session found
+          console.log("No session found");
+          localStorage.removeItem('recent_session');
+          localStorage.removeItem('session_timestamp');
+          localStorage.removeItem('user_data');
+          localStorage.removeItem('user_timestamp');
+          setUser(null);
+        }
+        
+        return data.session;
+      } catch (error) {
+        console.error("Error in supabase.auth.getSession():", error);
+        throw error;
       }
-      
-      return data.session;
     } catch (error) {
       console.error("Error getting session:", error);
       setError(error as Error);
@@ -126,6 +132,7 @@ export const useSessionManager = () => {
   // Direct session check without user profile retrieval
   const checkSessionOnly = async () => {
     try {
+      console.log("Performing lightweight session check");
       // Try to use the cached session first for super fast checking
       const cachedSession = localStorage.getItem('recent_session');
       const cachedTimestamp = localStorage.getItem('session_timestamp');
@@ -147,6 +154,7 @@ export const useSessionManager = () => {
       const cachedUserData = localStorage.getItem('user_data');
       if (cachedUserData) {
         try {
+          console.log("Attempting lightweight RPC check");
           // Try a lightweight RPC call to verify active session
           const { data, error } = await supabase.rpc('get_auth_status');
           if (!error && data === true) {
@@ -155,23 +163,34 @@ export const useSessionManager = () => {
             return cachedSession ? JSON.parse(cachedSession) : null;
           }
         } catch (e) {
-          console.log("Error with preflight check, falling back to full session fetch");
+          console.log("Error with preflight check, falling back to full session fetch", e);
         }
       }
       
       // Fall back to full session fetch
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      
-      if (data.session) {
-        localStorage.setItem('recent_session', JSON.stringify(data.session));
-        localStorage.setItem('session_timestamp', now.toString());
-      } else {
-        localStorage.removeItem('recent_session');
-        localStorage.removeItem('session_timestamp');
+      console.log("Performing full session fetch");
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Error in full session fetch:", error);
+          throw error;
+        }
+        
+        if (data.session) {
+          console.log("Session found in full fetch");
+          localStorage.setItem('recent_session', JSON.stringify(data.session));
+          localStorage.setItem('session_timestamp', now.toString());
+        } else {
+          console.log("No session found in full fetch");
+          localStorage.removeItem('recent_session');
+          localStorage.removeItem('session_timestamp');
+        }
+        
+        return data.session;
+      } catch (fetchError) {
+        console.error("Error in supabase.auth.getSession():", fetchError);
+        return null;
       }
-      
-      return data.session;
     } catch (error) {
       console.error("Direct session check error:", error);
       return null;
