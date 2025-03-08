@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import LoadingState from "@/components/dashboard/LoadingState";
+import MaxTimeoutState from "@/components/dashboard/MaxTimeoutState";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,26 +14,47 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading, sessionChecked, user, refreshSession } = useAuth();
   const location = useLocation();
   const [showFallback, setShowFallback] = useState(false);
+  const [showMaxTimeout, setShowMaxTimeout] = useState(false);
   const [quickCheckDone, setQuickCheckDone] = useState(false);
   const [quickCheckPassed, setQuickCheckPassed] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
   
   // Perform a quick check for recently authenticated sessions
   useEffect(() => {
     const quickCheck = () => {
       try {
+        // Check both session cache and user data cache
         const cachedSession = localStorage.getItem('recent_session');
         const cachedTimestamp = localStorage.getItem('session_timestamp');
+        const cachedUserData = localStorage.getItem('user_data');
+        const userTimestamp = localStorage.getItem('user_timestamp');
         const now = Date.now();
         
-        if (cachedSession && cachedTimestamp && (now - Number(cachedTimestamp)) < 300000) {
+        const sessionValid = cachedSession && cachedTimestamp && 
+          (now - Number(cachedTimestamp)) < 300000;
+        
+        const userDataValid = cachedUserData && userTimestamp && 
+          (now - Number(userTimestamp)) < 300000;
+        
+        if ((sessionValid || userDataValid) && (cachedSession || cachedUserData)) {
           try {
-            const parsedSession = JSON.parse(cachedSession);
-            if (parsedSession && parsedSession.user) {
-              console.log("QuickCheck: Found valid cached session");
-              setQuickCheckPassed(true);
+            if (sessionValid && cachedSession) {
+              const parsedSession = JSON.parse(cachedSession);
+              if (parsedSession && parsedSession.user) {
+                console.log("QuickCheck: Found valid cached session");
+                setQuickCheckPassed(true);
+              }
+            }
+            
+            if (userDataValid && cachedUserData) {
+              const parsedUserData = JSON.parse(cachedUserData);
+              if (parsedUserData && parsedUserData.id) {
+                console.log("QuickCheck: Found valid cached user data");
+                setQuickCheckPassed(true);
+              }
             }
           } catch (e) {
-            console.log("QuickCheck: Error parsing cached session");
+            console.log("QuickCheck: Error parsing cached data");
           }
         }
       } catch (e) {
@@ -52,8 +75,28 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       }
     }, 2000);
     
-    return () => clearTimeout(timer);
+    const maxTimer = setTimeout(() => {
+      if (isLoading || !sessionChecked) {
+        setShowMaxTimeout(true);
+      }
+    }, 5000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(maxTimer);
+    };
   }, [isLoading, sessionChecked]);
+  
+  // Handle session refresh
+  const handleSessionRefresh = async () => {
+    setRefreshAttempted(true);
+    await refreshSession();
+  };
+  
+  // Handle page refresh
+  const handleRefresh = () => {
+    window.location.reload();
+  };
   
   // If we have a quick check pass, show children immediately while auth validates in background
   if (quickCheckPassed && !sessionChecked) {
@@ -61,24 +104,25 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
   
   // If loading and we've waited long enough, show the fallback UI
+  if ((isLoading || !sessionChecked) && showMaxTimeout) {
+    return (
+      <MaxTimeoutState
+        refreshAttempted={refreshAttempted}
+        onSessionRefresh={handleSessionRefresh}
+        onRefresh={handleRefresh}
+      />
+    );
+  }
+  
+  // If loading and we've waited enough time, show timeout state
   if ((isLoading || !sessionChecked) && showFallback) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <div className="mb-4">Vérification de l'authentification...</div>
-        <Button 
-          variant="outline" 
-          onClick={() => refreshSession()}
-          className="mb-2"
-        >
-          Rafraîchir la session
-        </Button>
-        <Button 
-          variant="outline" 
-          onClick={() => window.location.reload()}
-        >
-          Rafraîchir la page
-        </Button>
-      </div>
+      <LoadingState
+        showTimeout={true}
+        refreshAttempted={refreshAttempted}
+        onSessionRefresh={handleSessionRefresh}
+        onRefresh={handleRefresh}
+      />
     );
   }
   

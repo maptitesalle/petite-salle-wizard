@@ -22,6 +22,15 @@ export const useSessionManager = () => {
     try {
       console.log("Processing session for user:", session.user.id);
       const userData = await fetchUserProfile(session.user);
+      
+      // Cache the processed user data for quicker access
+      try {
+        localStorage.setItem('user_data', JSON.stringify(userData));
+        localStorage.setItem('user_timestamp', Date.now().toString());
+      } catch (e) {
+        console.warn("Failed to cache user data:", e);
+      }
+      
       setUser(userData);
     } catch (error) {
       console.error("Error fetching user profile:", error);
@@ -37,6 +46,28 @@ export const useSessionManager = () => {
     setError(null);
     
     try {
+      // First, check if we have cached user data
+      try {
+        const cachedUserData = localStorage.getItem('user_data');
+        const cachedTimestamp = localStorage.getItem('user_timestamp');
+        const now = Date.now();
+        
+        // If we have cached user data less than 5 minutes old, use it first for immediate display
+        if (cachedUserData && cachedTimestamp && (now - Number(cachedTimestamp)) < 300000) {
+          try {
+            const parsedUserData = JSON.parse(cachedUserData);
+            if (parsedUserData && parsedUserData.id) {
+              console.log("Using cached user data for quick display");
+              setUser(parsedUserData);
+            }
+          } catch (e) {
+            console.log("Error parsing cached user data, will fetch fresh one");
+          }
+        }
+      } catch (e) {
+        console.warn("Error accessing localStorage for user data:", e);
+      }
+      
       // Use localStorage to check if we have a recent session first
       const cachedSession = localStorage.getItem('recent_session');
       const cachedTimestamp = localStorage.getItem('session_timestamp');
@@ -76,6 +107,8 @@ export const useSessionManager = () => {
         console.log("No session found");
         localStorage.removeItem('recent_session');
         localStorage.removeItem('session_timestamp');
+        localStorage.removeItem('user_data');
+        localStorage.removeItem('user_timestamp');
         setUser(null);
       }
       
@@ -110,12 +143,31 @@ export const useSessionManager = () => {
         }
       }
       
+      // Use preflight check to avoid full session fetch if possible
+      const cachedUserData = localStorage.getItem('user_data');
+      if (cachedUserData) {
+        try {
+          // Try a lightweight RPC call to verify active session
+          const { data, error } = await supabase.rpc('get_auth_status');
+          if (!error && data === true) {
+            console.log("Session verified via lightweight check");
+            return JSON.parse(cachedSession || '{}');
+          }
+        } catch (e) {
+          console.log("Error with preflight check, falling back to full session fetch");
+        }
+      }
+      
+      // Fall back to full session fetch
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
       
       if (data.session) {
         localStorage.setItem('recent_session', JSON.stringify(data.session));
         localStorage.setItem('session_timestamp', now.toString());
+      } else {
+        localStorage.removeItem('recent_session');
+        localStorage.removeItem('session_timestamp');
       }
       
       return data.session;

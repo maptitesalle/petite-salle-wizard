@@ -41,6 +41,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { getCurrentSession, processSession } = useSessionManager();
   const { login: authLogin, logout: authLogout, register: authRegister } = useAuthOperations();
 
+  // Get cached user on first render for immediate UI display
+  useEffect(() => {
+    try {
+      const cachedUserData = localStorage.getItem('user_data');
+      const userTimestamp = localStorage.getItem('user_timestamp');
+      const now = Date.now();
+      
+      if (cachedUserData && userTimestamp && (now - Number(userTimestamp)) < 300000) {
+        try {
+          const parsedUserData = JSON.parse(cachedUserData);
+          if (parsedUserData && parsedUserData.id) {
+            console.log("AuthContext: Using cached user data on first render");
+            setUser(parsedUserData);
+          }
+        } catch (e) {
+          console.log("AuthContext: Error parsing cached user data");
+        }
+      }
+    } catch (e) {
+      console.error("AuthContext: Error checking user cache", e);
+    }
+  }, []);
+
   // Login function
   const login = async (email: string, password: string): Promise<void> => {
     try {
@@ -74,6 +97,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await authLogout();
       setUser(null);
+      
+      // Clear all auth caches on logout
+      localStorage.removeItem('recent_session');
+      localStorage.removeItem('session_timestamp');
+      localStorage.removeItem('user_data');
+      localStorage.removeItem('user_timestamp');
+      
       toast({
         title: "Déconnexion réussie",
       });
@@ -129,10 +159,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sonnerToast.error("Erreur lors du rafraîchissement de la session");
     } finally {
       setIsLoading(false);
+      setSessionChecked(true);
     }
   };
 
-  // Initialize auth state
+  // Initialize auth state with fast cache first approach
   useEffect(() => {
     let isMounted = true;
     console.log("AuthContext: Getting current session");
@@ -142,6 +173,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       try {
         setIsLoading(true);
+        
+        // Try optimized session check
         await getCurrentSession(setUser);
       } catch (error) {
         console.error('Error in initial session fetch:', error);
@@ -153,6 +186,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
+    // Initialize auth immediately
     initAuth();
     
     // Set up listener for auth state changes
@@ -165,10 +199,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         if (session) {
           console.log("AuthContext: Processing valid session for user:", session.user.id);
+          
+          // Update cache
+          localStorage.setItem('recent_session', JSON.stringify(session));
+          localStorage.setItem('session_timestamp', Date.now().toString());
+          
           await processSession(session, setUser);
         } else if (event === 'SIGNED_OUT') {
           console.log("AuthContext: User signed out, clearing user data");
           setUser(null);
+          
+          // Clear all auth caches on signout
+          localStorage.removeItem('recent_session');
+          localStorage.removeItem('session_timestamp');
+          localStorage.removeItem('user_data');
+          localStorage.removeItem('user_timestamp');
         }
       } catch (error) {
         console.error("Error processing auth state change:", error);

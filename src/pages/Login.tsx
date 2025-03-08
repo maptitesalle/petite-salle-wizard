@@ -7,25 +7,38 @@ import { useToast } from '@/hooks/use-toast';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/context/AuthContext';
 import { RefreshCcw, Loader2 } from 'lucide-react';
+import LoadingState from '@/components/dashboard/LoadingState';
+import MaxTimeoutState from '@/components/dashboard/MaxTimeoutState';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSessionRefresh, setShowSessionRefresh] = useState(false);
+  const [showMaxTimeout, setShowMaxTimeout] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, sessionChecked, login, refreshSession } = useAuth();
   
-  // Show refresh button after 3 seconds if still loading
+  // Show refresh button after 2 seconds if still loading
   useEffect(() => {
     const timer = setTimeout(() => {
       if (authLoading) {
         setShowSessionRefresh(true);
       }
-    }, 3000);
+    }, 2000);
     
-    return () => clearTimeout(timer);
+    const maxTimer = setTimeout(() => {
+      if (authLoading) {
+        setShowMaxTimeout(true);
+      }
+    }, 5000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(maxTimer);
+    };
   }, [authLoading]);
   
   // Redirect if already authenticated
@@ -75,8 +88,9 @@ const Login = () => {
     }
   };
   
-  const handleRefreshSession = async () => {
+  const handleSessionRefresh = async () => {
     try {
+      setRefreshAttempted(true);
       await refreshSession();
       toast({
         title: "Rafraîchissement de session",
@@ -91,40 +105,25 @@ const Login = () => {
     window.location.reload();
   };
   
-  if (authLoading && !showSessionRefresh) {
+  // Utilisez les nouveaux composants LoadingState et MaxTimeoutState
+  if (authLoading && !showMaxTimeout) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
-        <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-mps-primary" />
-          <p className="mb-4">Vérification de la session...</p>
-        </div>
-      </div>
+      <LoadingState
+        showTimeout={showSessionRefresh}
+        refreshAttempted={refreshAttempted}
+        onSessionRefresh={handleSessionRefresh}
+        onRefresh={handlePageRefresh}
+      />
     );
   }
   
-  if (authLoading && showSessionRefresh) {
+  if (authLoading && showMaxTimeout) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-mps-secondary/30 p-4">
-        <div className="text-center">
-          <p className="mb-6">La vérification de la session prend plus de temps que prévu</p>
-          <div className="space-y-3">
-            <Button 
-              variant="default"
-              onClick={handleRefreshSession}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <RefreshCcw size={16} /> Restaurer la session
-            </Button>
-            <Button 
-              variant="outline"
-              onClick={handlePageRefresh}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <RefreshCcw size={16} /> Rafraîchir la page
-            </Button>
-          </div>
-        </div>
-      </div>
+      <MaxTimeoutState
+        refreshAttempted={refreshAttempted}
+        onSessionRefresh={handleSessionRefresh}
+        onRefresh={handlePageRefresh}
+      />
     );
   }
   
@@ -149,7 +148,7 @@ const Login = () => {
                 type="button"
                 variant="outline"
                 className="w-full flex items-center justify-center gap-2"
-                onClick={handleRefreshSession}
+                onClick={handleSessionRefresh}
                 disabled={isLoading}
               >
                 <RefreshCcw size={16} /> Rafraîchir la session
