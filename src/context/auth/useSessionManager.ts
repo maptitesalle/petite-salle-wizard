@@ -159,7 +159,7 @@ export const useSessionManager = () => {
           const { data, error } = await supabase.rpc('get_auth_status');
           if (!error && data === true) {
             console.log("Session verified via lightweight check");
-            // Fix: Only parse if cachedSession exists
+            // Only return parsed session if it exists
             return cachedSession ? JSON.parse(cachedSession) : null;
           }
         } catch (e) {
