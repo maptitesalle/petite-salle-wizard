@@ -151,7 +151,8 @@ export const useSessionManager = () => {
           const { data, error } = await supabase.rpc('get_auth_status');
           if (!error && data === true) {
             console.log("Session verified via lightweight check");
-            return JSON.parse(cachedSession || '{}');
+            // Fix: Only parse if cachedSession exists
+            return cachedSession ? JSON.parse(cachedSession) : null;
           }
         } catch (e) {
           console.log("Error with preflight check, falling back to full session fetch");
